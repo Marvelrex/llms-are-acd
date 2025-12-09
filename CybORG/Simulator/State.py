@@ -529,6 +529,8 @@ class State(CybORGLogger):
         min_step = 0
         max_step = 0
 
+        total_phases = len(self.scenario.mission_phases)
+
         for phase_num, phase_step_size in enumerate(self.scenario.mission_phases):
             min_step = max_step
             max_step = min_step + phase_step_size
@@ -536,8 +538,10 @@ class State(CybORGLogger):
                 new_mission_phase = phase_num
                 break
         
+        # Allow execution to continue gracefully past the configured horizon by
+        # clamping to the final mission phase instead of raising.
         if new_mission_phase is None:
-            raise ValueError(f"Step number ({step}) exceeds last mission phase step maximum ({max_step}). Use step parameter in EnterpriseScenarioGenerator.")
+            new_mission_phase = total_phases - 1
         if new_mission_phase > self.mission_phase:
             self.mission_phase = new_mission_phase
             return True
@@ -562,4 +566,3 @@ class State(CybORGLogger):
             output += f"subnet = {subnet}\n"
 
         return output
-
