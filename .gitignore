@@ -12,6 +12,8 @@ venv/*
 venv
 *venv*
 .vim
+cage-env/
+
 
 CybORG\.egg-info/
 

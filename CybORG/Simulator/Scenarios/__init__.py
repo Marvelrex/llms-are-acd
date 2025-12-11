@@ -1,1 +1,4 @@
 from .EnterpriseScenarioGenerator import EnterpriseScenarioGenerator
+#from .LMTPassTheHashScenarioGenerator import LMTPassTheHashScenarioGenerator
+#from .ScenarioGenerator import ScenarioGenerator
+from .LMTScenarioGenerator import LMTScenarioGenerator
