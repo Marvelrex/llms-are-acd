@@ -2,6 +2,7 @@ from .SimpleAgents.BaseAgent import BaseAgent
 from .SimpleAgents.ConstantAgent import ConstantAgent, SleepAgent, MonitorAgent
 from .SimpleAgents.EnterpriseGreenAgent import EnterpriseGreenAgent
 from .SimpleAgents.FiniteStateRedAgent import FiniteStateRedAgent
+from .SimpleAgents.LMTFiniteStateRedAgent import LMTFiniteStateRedAgent
 from .SimpleAgents.FSMRedVariants import VerboseFSRed, DiscoveryFSRed
 from .SimpleAgents.KeyboardAgent import KeyboardAgent
 # from .SimpleAgents.LinearAgent import LinearAgent
@@ -11,4 +12,3 @@ from .SimpleAgents.RandomSelectRedAgent import RandomSelectRedAgent
 from .SimpleAgents.TestFlatFixed import TestFlatFixedAgent
 # from .SimpleAgents.TestKeyboardBlue import TestKeyboardBlue
 # from .SimpleAgents.TestKeyboardDual import TestKeyboardDual
-

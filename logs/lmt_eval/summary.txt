@@ -1,0 +1,4 @@
+CybORG v4.0, LMTScenario
+Author: LLM and RL Agent, Team: UCSC Autonomous Cybersecurity Lab, Technique: LLM+RL
+Average reward is: 0.0 with a standard deviation of 0.0
+Using agents {'blue_agent_4': DefenderAgent}

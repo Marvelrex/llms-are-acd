@@ -1,0 +1,532 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/jialinlabvm/projects/llms-are-acd/.venv/lib/python3.12/site-packages/pygame/pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_stream, resource_exists
+Steps:   0%|          | 0/1000 [00:00<?, ?it/s]CybORG v4.0, LMTScenario
+Author: LLM and RL Agent, Team: UCSC Autonomous Cybersecurity Lab, Technique: LLM+RL
+Using agents {'blue_agent_4': DefenderAgent}, if this is incorrect please update the code to load in your agent
+Results will be saved to /home/jialinlabvm/projects/llms-are-acd/cage-challenge-4/logs/lmt_eval/
+---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.UNKNOWN: 2>, 'LMT-IT-DC01': {'Interface': [{'interface_name': 'eth0', 'ip_address': IPv4Address('192.168.57.11'), 'Subnet': IPv4Network('192.168.57.0/24')}], 'Sessions': [{'session_id': 0, 'username': 'blue\\analyst', 'timeout': 0, 'PID': np.int64(28), 'Type': <SessionType.VELOCIRAPTOR_SERVER: 8>, 'agent': 'blue_agent_4'}], 'Processes': [{'PID': 28, 'username': 'blue\\analyst'}], 'User Info': [{'username': 'it\\administrator', 'Groups': [{'GID': 0}]}, {'username': 'user', 'Groups': [{'GID': 1000}]}], 'System info': {'Hostname': 'LMT-IT-DC01', 'OSType': <OperatingSystemType.WINDOWS: 2>, 'OSDistribution': <OperatingSystemDistribution.UNKNOWN: 1>, 'OSVersion': <OperatingSystemVersion.UNKNOWN: 1>, 'Architecture': <Architecture.x64: 2>, 'position': array([0., 0.])}}, 'LMTDC01': {'Interface': [{'interface_name': 'eth0', 'ip_address': IPv4Address('192.168.56.10'), 'Subnet': IPv4Network('192.168.56.0/24')}], 'User Info': [{'username': 'lmt\\administrator', 'Groups': [{'GID': 0}]}, {'username': 'user', 'Groups': [{'GID': 1000}]}], 'System info': {'Hostname': 'LMTDC01', 'OSType': <OperatingSystemType.WINDOWS: 2>, 'OSDistribution': <OperatingSystemDistribution.UNKNOWN: 1>, 'OSVersion': <OperatingSystemVersion.UNKNOWN: 1>, 'Architecture': <Architecture.x64: 2>, 'position': array([0., 0.])}}, 'FILE-SERVER': {'Interface': [{'interface_name': 'eth0', 'ip_address': IPv4Address('192.168.58.13'), 'Subnet': IPv4Network('192.168.58.0/24')}], 'User Info': [{'username': 'file\\administrator', 'Groups': [{'GID': 0}]}, {'username': 'user', 'Groups': [{'GID': 1000}]}], 'System info': {'Hostname': 'FILE-SERVER', 'OSType': <OperatingSystemType.WINDOWS: 2>, 'OSDistribution': <OperatingSystemDistribution.UNKNOWN: 1>, 'OSVersion': <OperatingSystemVersion.UNKNOWN: 1>, 'Architecture': <Architecture.x64: 2>, 'position': array([0., 0.])}}, 'phase': 0, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])]}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : None
+Last Action Status: UNKNOWN
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+Suspicious Activity Detected:
+- Hostname: LMT-IT-DC01 | IP: 192.168.57.11
+- Hostname: LMTDC01 | IP: 192.168.56.10
+- Hostname: FILE-SERVER | IP: 192.168.58.13
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Suspicious activity detected on the host, requires further investigation."}
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : None
+Last Action Status: UNKNOWN
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+Suspicious Activity Detected:
+- Hostname: LMT-IT-DC01 | IP: 192.168.57.11
+- Hostname...[TRUNCATED]
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Suspicious activity detected on the host, requires further investigation."}
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Suspicious activity detected on the host, requires further investigation."}
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Suspicious activity detected on the host, requires further investigation."}
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   0%|          | 1/1000 [00:02<34:52,  2.09s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.IN_PROGRESS: 4>, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing the ongoing analysis action to gather more information."}
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing the ongoing analysis action to gather more information."}
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing the ongoing analysis action to gather more information."}
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing the ongoing analysis action to gather more information."}
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   0%|          | 2/1000 [00:03<27:52,  1.68s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.TRUE: 1>, 'action': Analyse LMT-IT-DC01, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Continue monitoring as there is currently no suspicious activity detected; further analysis helps
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Continue monitoring as there is currently no suspicious activity detected; further analysis helps
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Continue monitoring as there is currently no suspicious activity detected; further analysis helps
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Continue monitoring as there is currently no suspicious activity detected; further analysis helps
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   0%|          | 3/1000 [00:04<23:39,  1.42s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.IN_PROGRESS: 4>, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing to gather information on host to ensure no red activity is present
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing to gather information on host to ensure no red activity is present
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing to gather information on host to ensure no red activity is present
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Continuing to gather information on host to ensure no red activity is present
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   0%|          | 4/1000 [00:05<21:34,  1.30s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.TRUE: 1>, 'action': Analyse LMT-IT-DC01, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is needed to ensure no hidden threats are present."}
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is needed to ensure no hidden threats are present."}
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is needed to ensure no hidden threats are present."}
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is needed to ensure no hidden threats are present."}
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   0%|          | 5/1000 [00:07<22:21,  1.35s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.UNKNOWN: 2>, 'LMT-IT-DC01': {'Interface': [{'interface_name': 'eth0', 'ip_address': IPv4Address('192.168.57.11'), 'Subnet': IPv4Network('192.168.57.0/24')}], 'Sessions': [{'session_id': 0, 'username': 'blue\\analyst', 'timeout': 0, 'PID': np.int64(22), 'Type': <SessionType.VELOCIRAPTOR_SERVER: 8>, 'agent': 'blue_agent_4'}], 'Processes': [{'PID': 22, 'username': 'blue\\analyst'}], 'User Info': [{'username': 'it\\administrator', 'Groups': [{'GID': 0}]}, {'username': 'user', 'Groups': [{'GID': 1000}]}], 'System info': {'Hostname': 'LMT-IT-DC01', 'OSType': <OperatingSystemType.WINDOWS: 2>, 'OSDistribution': <OperatingSystemDistribution.UNKNOWN: 1>, 'OSVersion': <OperatingSystemVersion.UNKNOWN: 1>, 'Architecture': <Architecture.x64: 2>, 'position': array([0., 0.])}}, 'LMTDC01': {'Interface': [{'interface_name': 'eth0', 'ip_address': IPv4Address('192.168.56.10'), 'Subnet': IPv4Network('192.168.56.0/24')}], 'User Info': [{'username': 'lmt\\administrator', 'Groups': [{'GID': 0}]}, {'username': 'user', 'Groups': [{'GID': 1000}]}], 'System info': {'Hostname': 'LMTDC01', 'OSType': <OperatingSystemType.WINDOWS: 2>, 'OSDistribution': <OperatingSystemDistribution.UNKNOWN: 1>, 'OSVersion': <OperatingSystemVersion.UNKNOWN: 1>, 'Architecture': <Architecture.x64: 2>, 'position': array([0., 0.])}}, 'FILE-SERVER': {'Interface': [{'interface_name': 'eth0', 'ip_address': IPv4Address('192.168.58.13'), 'Subnet': IPv4Network('192.168.58.0/24')}], 'User Info': [{'username': 'file\\administrator', 'Groups': [{'GID': 0}]}, {'username': 'user', 'Groups': [{'GID': 1000}]}], 'System info': {'Hostname': 'FILE-SERVER', 'OSType': <OperatingSystemType.WINDOWS: 2>, 'OSDistribution': <OperatingSystemDistribution.UNKNOWN: 1>, 'OSVersion': <OperatingSystemVersion.UNKNOWN: 1>, 'Architecture': <Architecture.x64: 2>, 'position': array([0., 0.])}}, 'phase': 0, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])]}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: UNKNOWN
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+Suspicious Activity Detected:
+- Hostname: LMT-IT-DC01 | IP: 192.168.57.11
+- Hostname: LMTDC01 | IP: 192.168.56.10
+- Hostname: FILE-SERVER | IP: 192.168.58.13
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is needed on suspicious activity detected on the host."}
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: UNKNOWN
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+Suspicious Activity Detected:
+- Hostname: LMT-IT-DC01 | IP: 192....[TRUNCATED]
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is needed on suspicious activity detected on the host."}
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is needed on suspicious activity detected on the host."}
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is needed on suspicious activity detected on the host."}
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   1%|          | 6/1000 [00:08<23:18,  1.41s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.IN_PROGRESS: 4>, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "The analysis of the host is still in progress, and no suspicious activity
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "The analysis of the host is still in progress, and no suspicious activity
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "The analysis of the host is still in progress, and no suspicious activity
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "The analysis of the host is still in progress, and no suspicious activity
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   1%|          | 7/1000 [00:10<23:13,  1.40s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.TRUE: 1>, 'action': Analyse LMT-IT-DC01, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is warranted despite no current suspicious activity to ensure the host remains
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is warranted despite no current suspicious activity to ensure the host remains
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is warranted despite no current suspicious activity to ensure the host remains
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further analysis is warranted despite no current suspicious activity to ensure the host remains
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   1%|          | 8/1000 [00:11<21:27,  1.30s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.IN_PROGRESS: 4>, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "The previous action is still in progress, indicating ongoing investigation of the host
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: IN_PROGRESS
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "The previous action is still in progress, indicating ongoing investigation of the host
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "The previous action is still in progress, indicating ongoing investigation of the host
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "The previous action is still in progress, indicating ongoing investigation of the host
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   1%|          | 9/1000 [00:12<19:58,  1.21s/it]---------------------
+Starting new episode
+---------------------
+[DEBUG] Received observation
+{'success': <TernaryEnum.TRUE: 1>, 'action': Analyse LMT-IT-DC01, 'message': [array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False]), array([False, False, False, False, False, False, False, False])], 'phase': 0}
+[DEBUG] Formatted observation:
+# OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+
+[INFO] Generated response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is beneficial as no suspicious activity is currently detected."}
+[+] Conversation:
+[SYSTEM] AGENT_NAME: blue_agent_4
+Prioritize this `# DESCRIPTION` section to generate your answer. Remember your `AGENT_NAME` is the BLUE AGENT you are. 
+IMPORTANT: Return ONLY ONE action from `## AVAILABLE ACTIONS`
+# INSTRUCTIONS
+# DESCRIPTION
+
+You are an expert in cyber security defending an enterprise network. Analyze the network state and choose the best action and parameter from the list of actions based on their descrip...[TRUNCATED]
+---------------------
+[USER] # OBSERVATION
+
+Mission Phase: 0
+Last Action : Analyse host:LMT-IT-DC01
+Last Action Status: TRUE
+Communication Vectors: 
+Commvector Blue Agent 0 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 1 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 2 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+Commvector Blue Agent 3 Message: [0, 0, 0, 0, 0, 0, 0, 0]
+
+ Suspicious Activity Detected: None
+---------------------
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is beneficial as no suspicious activity is currently detected."}
+---------------------
+[+] Conversation complete
+[+] Final Assistant response:
+[ASSISTANT] {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is beneficial as no suspicious activity is currently detected."}
+[DEBUG] Processing response: {"action": "Analyse host:LMT-IT-DC01", "reason": "Further investigation is beneficial as no suspicious activity is currently detected."}
+[DEBUG] Extracted hostname: LMT-IT-DC01
+[DEBUG] Creating Analyse action with hostname: LMT-IT-DC01
+[+] Final action: Analyse
+Steps:   1%|          | 10/1000 [00:13<18:31,  1.12s/it]Average reward is: 0.0 with a standard deviation of 0.0
+File took 0:00:13.033984 amount of time to finish evaluation
+Saving results to /home/jialinlabvm/projects/llms-are-acd/cage-challenge-4/logs/lmt_eval/

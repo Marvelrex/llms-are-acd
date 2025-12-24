@@ -1,1 +1,2 @@
 from .EnterpriseScenarioGenerator import EnterpriseScenarioGenerator
+from .LMTScenarioGenerator import LMTScenarioGenerator
