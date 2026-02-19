@@ -1,9 +1,9 @@
 backend: "deepseek"
-model_name: "openai/gpt-4o-mini"
+model_name: "openai/gpt-5.2"
 batch_size: 1
 seed: 42069
 episodes: 1000
 generate:
-  max_new_tokens: 256
-  max_length: 2048
+  max_new_tokens: 1024
+  max_length: 1024
   temperature: 0.9

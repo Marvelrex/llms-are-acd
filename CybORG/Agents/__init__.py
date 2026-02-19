@@ -12,3 +12,4 @@ from .SimpleAgents.RandomSelectRedAgent import RandomSelectRedAgent
 from .SimpleAgents.TestFlatFixed import TestFlatFixedAgent
 # from .SimpleAgents.TestKeyboardBlue import TestKeyboardBlue
 # from .SimpleAgents.TestKeyboardDual import TestKeyboardDual
+

@@ -1,0 +1,11 @@
+backend: "deepseek"
+model_name: "openai/gpt-5-mini"
+batch_size: 1
+seed: 42069
+episodes: 1000
+generate:
+  # Increase to avoid truncating structured outputs (JSON) for the action-graph agent.
+  max_new_tokens: 1024
+  max_length: 4096
+  # Lower temp helps keep the response strictly structured (JSON/action dict).
+  temperature: 0.2

@@ -5,6 +5,7 @@ from statistics import mean, stdev
 from CybORG import CybORG, CYBORG_VERSION
 from CybORG.Agents import SleepAgent, EnterpriseGreenAgent, FiniteStateRedAgent
 from CybORG.Simulator.Scenarios import EnterpriseScenarioGenerator
+from CybORG.Agents.LLMAgents.config.config_vars import ENV_VAR_MODEL
 
 from datetime import datetime
 
@@ -55,7 +56,8 @@ def load_submission(source: str):
 
 def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=None):
     cyborg_version = CYBORG_VERSION
-    EPISODE_LENGTH = 500
+    # Allow fast smoke tests without changing benchmark defaults.
+    EPISODE_LENGTH = int(os.environ.get("CAGE4_EPISODE_LENGTH", "500"))
     scenario = "Scenario4"
 
     version_header = f"CybORG v{cyborg_version}, {scenario}"
@@ -130,8 +132,8 @@ def run_evaluation(submission, log_path, max_eps=100, write_to_file=True, seed=N
     end = datetime.now()
     difference = end - start
 
-    reward_mean = mean(total_reward)
-    reward_stdev = stdev(total_reward)
+    reward_mean = mean(total_reward) if total_reward else 0.0
+    reward_stdev = stdev(total_reward) if len(total_reward) > 1 else 0.0
     reward_string = (
         f"Average reward is: {reward_mean} with a standard deviation of {reward_stdev}"
     )
@@ -211,6 +213,17 @@ if __name__ == "__main__":
         "--seed", type=int, default=None, help="Set the seed for CybORG"
     )
     parser.add_argument("--max-eps", type=int, default=100, help="Max episodes to run")
+    parser.add_argument(
+        "--model-config",
+        type=str,
+        default=None,
+        help=(
+            "Path or shorthand name of the LLM model config YAML. "
+            "If a bare name is given, the script looks in "
+            "CybORG/Agents/LLMAgents/config/model/. "
+            "Forwarded via the CAGE4_MODEL_CONFIG environment variable."
+        ),
+    )
     args = parser.parse_args()
     args.output_path = os.path.abspath(args.output_path)
     args.submission_path = os.path.abspath(args.submission_path)
@@ -222,6 +235,33 @@ if __name__ == "__main__":
         args.output_path += time.strftime("%Y%m%d_%H%M%S") + "/"
 
     rmkdir(args.output_path)
+
+    if args.model_config:
+        model_search_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "Agents", "LLMAgents", "config", "model")
+        )
+        resolved_model = None
+        if os.path.isfile(args.model_config):
+            resolved_model = os.path.abspath(args.model_config)
+        else:
+            candidates = [os.path.join(model_search_dir, args.model_config)]
+            if not args.model_config.endswith((".yml", ".yaml")):
+                candidates.extend(
+                    [
+                        os.path.join(model_search_dir, f"{args.model_config}.yml"),
+                        os.path.join(model_search_dir, f"{args.model_config}.yaml"),
+                    ]
+                )
+            for candidate in candidates:
+                if os.path.isfile(candidate):
+                    resolved_model = os.path.abspath(candidate)
+                    break
+        if resolved_model is None:
+            raise FileNotFoundError(
+                f"Model config '{args.model_config}' not found. "
+                f"Tried current path and {model_search_dir}."
+            )
+        os.environ[ENV_VAR_MODEL] = resolved_model
 
     submission = load_submission(args.submission_path)
     run_evaluation(

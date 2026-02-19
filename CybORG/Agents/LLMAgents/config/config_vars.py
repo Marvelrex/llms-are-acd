@@ -3,6 +3,8 @@ SUB_NAME = "LLM and RL Agent"
 SUB_TEAM = "UCSC Autonomous Cybersecurity Lab"
 SUB_TECHNIQUE = "LLM+RL"
 
+import os
+
 # LLM Agent
 # Can be set to `blue_agent_0` or `blue_agent_1` or `blue_agent_2` or `blue_agent_3` or `blue_agent_4`
 BLUE_AGENT_NAME = "blue_agent_4"
@@ -25,4 +27,8 @@ CAGE4_RULES_PROMPT_PATH = "config/prompts/env_rules/cage4_rules_v2.yml"         
 
 # Extra
 DEBUG_MODE = True   # Enable/Disable debugging messages
-TOTAL_STEPS_PROGRESS_BAR = 1000 # TODO: Get this from the environment
+# tqdm total for LLM decision steps; default to the benchmark episode length.
+# `MAX_EPS` is set by our run scripts, so this tracks the full evaluation run unless overridden.
+_episode_len = int(os.environ.get("CAGE4_EPISODE_LENGTH", "500"))
+_max_eps = int(os.environ.get("MAX_EPS", "1"))
+TOTAL_STEPS_PROGRESS_BAR = int(os.environ.get("CAGE4_TOTAL_STEPS_PROGRESS_BAR", str(_episode_len * _max_eps)))

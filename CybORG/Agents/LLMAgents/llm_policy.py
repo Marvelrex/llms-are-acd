@@ -24,6 +24,7 @@ from CybORG.Agents.LLMAgents.config.config_vars import (
     ENV_VAR_MODEL, ENV_VAR_PROMPT, DEBUG_MODE, BLUE_AGENT_NAME, TOTAL_STEPS_PROGRESS_BAR, 
     INCLUDE_PROMPT_CAGE4_RULES, INCLUDE_PROMPT_COMMVECTOR_RULES
 )
+from CybORG.Shared.Enums import TernaryEnum
 
 # ----------------------------
 # Configuration initialization
@@ -57,6 +58,14 @@ class LLMDefenderPolicy(Policy):
         # TODO: Fix this progress bar with the correct number of steps
         self.step = 0
         self.progress_bar = tqdm.tqdm(total=TOTAL_STEPS_PROGRESS_BAR, desc="Steps")
+
+    def _safe_log(self, action_log: dict):
+        """Log to wandb only if a run is active."""
+        try:
+            if wandb.run is not None:
+                wandb.log(action_log, step=wandb.run.step)
+        except Exception:
+            pass
     
     def _load_all_prompts(self):
         """
@@ -123,42 +132,42 @@ class LLMDefenderPolicy(Policy):
             # Map actions to their required parameters
             if "remove" in lower_response_action and hostname:
                 action_log[f"{self.name}_remove"] = 1
-                wandb.log(action_log, step=wandb.run.step)
+                self._safe_log(action_log)
                 Logger.debug(f"Creating Remove action with hostname: {hostname}")
                 self.last_action = f"Remove host:{hostname}"
                 return Remove(session=0, agent=self.name, hostname=hostname)
 
             elif "restore" in lower_response_action and hostname:
                 action_log[f"{self.name}_restore"] = 1
-                wandb.log(action_log, step=wandb.run.step)
+                self._safe_log(action_log)
                 Logger.debug(f"Creating Restore action with hostname: {hostname}")
                 self.last_action = f"Restore host:{hostname}"
                 return Restore(session=0, agent=self.name, hostname=hostname)
 
             elif "blocktrafficzone" in lower_response_action and target_subnet:
                 action_log[f"{self.name}_blocktrafficzone"] = 1
-                wandb.log(action_log, step=wandb.run.step)
+                self._safe_log(action_log)
                 Logger.debug(f"Creating BlockTrafficZone action with subnet: {target_subnet}")
                 self.last_action = f"BlockTrafficZone subnet:{target_subnet}"
                 return BlockTrafficZone(session=0, agent=self.name, from_subnet=self.subnet, to_subnet=target_subnet)
 
             elif "allowtrafficzone" in lower_response_action and target_subnet:
                 action_log[f"{self.name}_allowtrafficzone"] = 1
-                wandb.log(action_log, step=wandb.run.step)
+                self._safe_log(action_log)
                 Logger.debug(f"Creating AllowTrafficZone action with subnet: {target_subnet}")
                 self.last_action = f"AllowTrafficZone subnet:{target_subnet}"
                 return AllowTrafficZone(session=0, agent=self.name, from_subnet=self.subnet, to_subnet=target_subnet)
 
             elif "deploydecoy" in lower_response_action and hostname:
                 action_log[f"{self.name}_deploydecoy"] = 1
-                wandb.log(action_log, step=wandb.run.step)
+                self._safe_log(action_log)
                 Logger.debug(f"Creating DeployDecoy action with hostname: {hostname}")
                 self.last_action = f"DeployDecoy host:{hostname}"
                 return DeployDecoy(session=0, agent=self.name, hostname=hostname)
 
             elif "analyse" in lower_response_action and hostname:
                 action_log[f"{self.name}_analyse"] = 1
-                wandb.log(action_log, step=wandb.run.step)
+                self._safe_log(action_log)
                 Logger.debug(f"Creating Analyse action with hostname: {hostname}")
                 self.last_action = f"Analyse host:{hostname}"
                 return Analyse(session=0, agent=self.name, hostname=hostname)
@@ -166,12 +175,12 @@ class LLMDefenderPolicy(Policy):
                 #FIXME: Add logging for sleep action
                 self.last_action = "Sleep"
                 action_log[f"{self.name}_sleep"] = 1
-                wandb.log(action_log, step=wandb.run.step)
+                self._safe_log(action_log)
                 Logger.debug("Creating Sleep action")
                 return Sleep()
             # If no valid action found or missing required parameters
             action_log[f"{self.name}_action_invalid"] = 1
-            wandb.log(action_log, step=wandb.run.step)
+            self._safe_log(action_log)
             Logger.debug("No valid action pattern found or missing required parameters, defaulting to Sleep")
             self.last_action = "Sleep"
             return Sleep()
@@ -180,7 +189,7 @@ class LLMDefenderPolicy(Policy):
             Logger.error(f"Error extracting action: {e}. Defaulting to Sleep.")
             self.last_action = "Sleep"
             action_log[f"{self.name}_error_action_extraction"] = 1
-            wandb.log(action_log, step=wandb.run.step)
+            self._safe_log(action_log)
 
             return Sleep()
 
@@ -194,6 +203,13 @@ class LLMDefenderPolicy(Policy):
         """Process a single observation and return corresponding action."""
         #TODO: This is currently sending all the prompts in the config file every episode. 
         Logger.new_episode()
+
+        # If the previous action is still executing, don't spend tokens asking the LLM.
+        if isinstance(obs, dict) and obs.get("success") == TernaryEnum.IN_PROGRESS:
+            self.step += 1
+            self.progress_bar.update(1)
+            return Sleep(), [], {}
+
         obs_message = obs_formatter.format_observation(obs, self.last_action, self.name)
         self.current_episode_messages = []
         response = ""
@@ -314,6 +330,14 @@ class LLMDefenderPolicy(Policy):
         print(f"Batch processing complete. Actions generated: {len(actions)}")
         return actions, state_out, info_out
 
+
+    def end_episode(self):
+        """Reset any per-episode state."""
+        self.step = 0
+        self.last_action = None
+        self.current_episode_messages = []
+        self.last_messages = []
+        self.last_response = ""
 
 # TODO: Are we using these methods?
     def get_weights(self):

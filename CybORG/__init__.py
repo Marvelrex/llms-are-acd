@@ -7,3 +7,4 @@ path = str(inspect.getfile(CybORG))
 path = path[:-7] + '/version.txt'
 with open(path) as f:
     CYBORG_VERSION = f.read()[:-1]
+
