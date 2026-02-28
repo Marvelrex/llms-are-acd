@@ -1,0 +1,42 @@
+[
+  {
+    "from": "defender_remove",
+    "to": "attacker_privilege_escalate",
+    "score": -8.549999999999999,
+    "visit_count": 1,
+    "success_count": 0,
+    "average_reward": -28.5
+  },
+  {
+    "from": "attacker_privilege_escalate",
+    "to": "defender_restore",
+    "score": -25.298807737076345,
+    "visit_count": 1,
+    "success_count": 0,
+    "average_reward": -28.5
+  },
+  {
+    "from": "attacker_privilege_escalate",
+    "to": "defender_monitor",
+    "score": -17.344402745995424,
+    "visit_count": 1,
+    "success_count": 0,
+    "average_reward": -28.5
+  },
+  {
+    "from": "attacker_stealth_service_discovery",
+    "to": "defender_remove",
+    "score": -21.042331648129423,
+    "visit_count": 1,
+    "success_count": 0,
+    "average_reward": -28.5
+  },
+  {
+    "from": "defender_monitor",
+    "to": "attacker_exploit_remote_service",
+    "score": -25.022195812744833,
+    "visit_count": 1,
+    "success_count": 0,
+    "average_reward": -28.5
+  }
+]

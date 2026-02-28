@@ -1,0 +1,1640 @@
+{
+  "nodes": [
+    {
+      "action_id": "defender_allow_traffic_zone",
+      "label": "AllowTrafficZone",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 1.0
+    },
+    {
+      "action_id": "defender_block_traffic_zone",
+      "label": "BlockTrafficZone",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 2.0
+    },
+    {
+      "action_id": "defender_monitor",
+      "label": "Monitor",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 3.0
+    },
+    {
+      "action_id": "defender_analyse",
+      "label": "Analyse",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 1.5
+    },
+    {
+      "action_id": "defender_restore",
+      "label": "Restore",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 7.0
+    },
+    {
+      "action_id": "defender_remove",
+      "label": "Remove",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 6.0
+    },
+    {
+      "action_id": "defender_deploy_decoy",
+      "label": "DeployDecoy",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 2.5
+    },
+    {
+      "action_id": "defender_sleep",
+      "label": "Sleep",
+      "agent_type": "defender",
+      "preconditions": null,
+      "llm_score": 8.0
+    },
+    {
+      "action_id": "attacker_discover_remote_systems",
+      "label": "DiscoverRemoteSystems",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_aggressive_service_discovery",
+      "label": "AggressiveServiceDiscovery",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_stealth_service_discovery",
+      "label": "StealthServiceDiscovery",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_exploit_remote_service",
+      "label": "ExploitRemoteService",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_privilege_escalate",
+      "label": "PrivilegeEscalate",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_degrade_services",
+      "label": "DegradeServices",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_discover_deception",
+      "label": "DiscoverDeception",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_impact",
+      "label": "Impact",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_withdraw",
+      "label": "Withdraw",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "attacker_sleep",
+      "label": "Sleep",
+      "agent_type": "attacker",
+      "preconditions": null
+    },
+    {
+      "action_id": "system_compromise",
+      "label": "System compromise",
+      "agent_type": "attacker",
+      "preconditions": null
+    }
+  ],
+  "edges": [
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_discover_remote_systems",
+      "score": -25.41985876062329,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -20.814527397972096
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_aggressive_service_discovery",
+      "score": -25.230046498925475,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -22.384916334955037
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_stealth_service_discovery",
+      "score": -24.996771345293183,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -22.92448918269231
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_exploit_remote_service",
+      "score": -24.003868239687623,
+      "description": null,
+      "visit_count": 5,
+      "success_count": 0,
+      "average_reward": -19.916620360024073
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_privilege_escalate",
+      "score": -28.57961678422513,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -25.840541221409826
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_degrade_services",
+      "score": -26.884807945805605,
+      "description": null,
+      "visit_count": 9,
+      "success_count": 0,
+      "average_reward": -19.48157116313736
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_discover_deception",
+      "score": -25.655843756388013,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -21.363664679940804
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_impact",
+      "score": -25.859480235608128,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -20.268630620588365
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "attacker_sleep",
+      "score": -26.75416119747896,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_allow_traffic_zone",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_discover_remote_systems",
+      "score": -27.142058386383994,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -23.582324660633482
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_aggressive_service_discovery",
+      "score": -26.34544292637293,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -23.582324660633482
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_stealth_service_discovery",
+      "score": -30.14270956473691,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -31.52328637510513
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_exploit_remote_service",
+      "score": -26.596321926571534,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -19.43405801511557
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_privilege_escalate",
+      "score": -28.53030529136909,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -25.116796875
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_degrade_services",
+      "score": -26.498467699346165,
+      "description": null,
+      "visit_count": 7,
+      "success_count": 0,
+      "average_reward": -19.42495255275065
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_discover_deception",
+      "score": -30.495188865137454,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -25.015384615384615
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_impact",
+      "score": -27.11561935417974,
+      "description": null,
+      "visit_count": 7,
+      "success_count": 0,
+      "average_reward": -19.792442694595813
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "attacker_sleep",
+      "score": -27.053809650356754,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -19.88934386857417
+    },
+    {
+      "from": "defender_block_traffic_zone",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_discover_remote_systems",
+      "score": -26.75398591338828,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_aggressive_service_discovery",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_stealth_service_discovery",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_exploit_remote_service",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_privilege_escalate",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_degrade_services",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_discover_deception",
+      "score": -26.840777849445455,
+      "description": null,
+      "visit_count": 9,
+      "success_count": 0,
+      "average_reward": -19.547830056276847
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_impact",
+      "score": -26.754000544949054,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_monitor",
+      "to": "attacker_sleep",
+      "score": -26.754000544949054,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_monitor",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_discover_remote_systems",
+      "score": -24.760225584995375,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -22.19575223538053
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_aggressive_service_discovery",
+      "score": -32.060283410558625,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -33.69661292338458
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_stealth_service_discovery",
+      "score": -26.96646192083707,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -18.369230769230768
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_exploit_remote_service",
+      "score": -27.123865420898166,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -24.540535375580227
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_privilege_escalate",
+      "score": -32.21866743912325,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -27.5823286918073
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_degrade_services",
+      "score": -28.057132793467847,
+      "description": null,
+      "visit_count": 7,
+      "success_count": 0,
+      "average_reward": -21.732568406218906
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_discover_deception",
+      "score": -29.10003388156755,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -25.774632352941175
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_impact",
+      "score": -26.631510306273892,
+      "description": null,
+      "visit_count": 6,
+      "success_count": 0,
+      "average_reward": -20.685292983964995
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_analyse",
+      "to": "attacker_sleep",
+      "score": -26.35186077160976,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -18.581427347239494
+    },
+    {
+      "from": "defender_analyse",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_discover_remote_systems",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_aggressive_service_discovery",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_stealth_service_discovery",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_exploit_remote_service",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_privilege_escalate",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_degrade_services",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_discover_deception",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_impact",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_restore",
+      "to": "attacker_sleep",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_restore",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_discover_remote_systems",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_aggressive_service_discovery",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_stealth_service_discovery",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_exploit_remote_service",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_privilege_escalate",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_degrade_services",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_discover_deception",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_impact",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_remove",
+      "to": "attacker_sleep",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "defender_remove",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_discover_remote_systems",
+      "score": -25.40234077935295,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -22.198219680414283
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_aggressive_service_discovery",
+      "score": -26.204957795060743,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -26.626771653543308
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_stealth_service_discovery",
+      "score": -34.482984494873754,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -33.84069522333727
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_exploit_remote_service",
+      "score": -25.608664303128055,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -19.455207437405683
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_privilege_escalate",
+      "score": -27.852290838607374,
+      "description": null,
+      "visit_count": 7,
+      "success_count": 0,
+      "average_reward": -21.685693648623555
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_degrade_services",
+      "score": -26.749636900298437,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_discover_deception",
+      "score": -28.404876481379812,
+      "description": null,
+      "visit_count": 6,
+      "success_count": 0,
+      "average_reward": -23.34487682948294
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_impact",
+      "score": -26.754000544949054,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "attacker_sleep",
+      "score": -26.754000544949054,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "defender_deploy_decoy",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_discover_remote_systems",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_aggressive_service_discovery",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_stealth_service_discovery",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_exploit_remote_service",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_privilege_escalate",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_degrade_services",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_discover_deception",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_impact",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_withdraw",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "defender_sleep",
+      "to": "attacker_sleep",
+      "score": -22.605819704433497,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -37.67857142857143
+    },
+    {
+      "from": "defender_sleep",
+      "to": "system_compromise",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_allow_traffic_zone",
+      "score": -27.780410637224623,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -25.894764059469946
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_block_traffic_zone",
+      "score": -27.612065398431515,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -22.4318521799408
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_monitor",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_analyse",
+      "score": -33.55079364677643,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -29.154887839433297
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_deploy_decoy",
+      "score": -28.178625472329614,
+      "description": null,
+      "visit_count": 6,
+      "success_count": 0,
+      "average_reward": -22.5487383349396
+    },
+    {
+      "from": "attacker_discover_remote_systems",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_allow_traffic_zone",
+      "score": -24.21706282394133,
+      "description": null,
+      "visit_count": 5,
+      "success_count": 0,
+      "average_reward": -20.05257542901925
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_block_traffic_zone",
+      "score": -28.273100881966467,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -25.015384615384615
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_monitor",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_analyse",
+      "score": -31.973765148999473,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -26.625589772432292
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_deploy_decoy",
+      "score": -27.101052058171543,
+      "description": null,
+      "visit_count": 6,
+      "success_count": 0,
+      "average_reward": -22.97878530817047
+    },
+    {
+      "from": "attacker_aggressive_service_discovery",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_allow_traffic_zone",
+      "score": -25.63492200170219,
+      "description": null,
+      "visit_count": 6,
+      "success_count": 0,
+      "average_reward": -21.588835419991444
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_block_traffic_zone",
+      "score": -30.34751964341029,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -26.870915304790902
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_monitor",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_analyse",
+      "score": -27.665168865154893,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -22.863307243797827
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_deploy_decoy",
+      "score": -27.2484891861263,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -20.812767619952638
+    },
+    {
+      "from": "attacker_stealth_service_discovery",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_allow_traffic_zone",
+      "score": -26.391114899414028,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -19.249526472496104
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_block_traffic_zone",
+      "score": -26.902052547323443,
+      "description": null,
+      "visit_count": 7,
+      "success_count": 0,
+      "average_reward": -19.42495255275065
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_monitor",
+      "score": -26.754000544949054,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_analyse",
+      "score": -26.840419764375202,
+      "description": null,
+      "visit_count": 7,
+      "success_count": 0,
+      "average_reward": -19.851714358795256
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_deploy_decoy",
+      "score": -26.752943984107972,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_exploit_remote_service",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_allow_traffic_zone",
+      "score": -26.656515413379804,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -25.321176908263308
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_block_traffic_zone",
+      "score": -23.934783640569474,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -13.360902255639099
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_monitor",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_analyse",
+      "score": -30.382427251267202,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -30.017967754030746
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_deploy_decoy",
+      "score": -26.33149045526947,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -23.523180003679403
+    },
+    {
+      "from": "attacker_privilege_escalate",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_allow_traffic_zone",
+      "score": -23.74634340391942,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -18.6766776503656
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_block_traffic_zone",
+      "score": -27.919619574844678,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -24.207511133204914
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_monitor",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_analyse",
+      "score": -28.38184742922389,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -24.231918712366834
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_deploy_decoy",
+      "score": -28.853887300720157,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -22.08410476711343
+    },
+    {
+      "from": "attacker_degrade_services",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_allow_traffic_zone",
+      "score": -25.75091623973207,
+      "description": null,
+      "visit_count": 6,
+      "success_count": 0,
+      "average_reward": -19.939431571764434
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_block_traffic_zone",
+      "score": -29.86734463607146,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -23.582324660633482
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_monitor",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_analyse",
+      "score": -30.265357935573405,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -26.050102692761783
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_remove",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_deploy_decoy",
+      "score": -26.596299851182113,
+      "description": null,
+      "visit_count": 9,
+      "success_count": 0,
+      "average_reward": -18.830832616591216
+    },
+    {
+      "from": "attacker_discover_deception",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_allow_traffic_zone",
+      "score": -24.052854316594217,
+      "description": null,
+      "visit_count": 4,
+      "success_count": 0,
+      "average_reward": -20.713254773537706
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_block_traffic_zone",
+      "score": -28.714459762831396,
+      "description": null,
+      "visit_count": 2,
+      "success_count": 0,
+      "average_reward": -22.721943933823532
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_monitor",
+      "score": -26.754000544949054,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_analyse",
+      "score": -28.619046991041262,
+      "description": null,
+      "visit_count": 3,
+      "success_count": 0,
+      "average_reward": -24.043952965483715
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_deploy_decoy",
+      "score": -26.88194003703321,
+      "description": null,
+      "visit_count": 7,
+      "success_count": 0,
+      "average_reward": -21.310672195714698
+    },
+    {
+      "from": "attacker_impact",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_allow_traffic_zone",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_block_traffic_zone",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_monitor",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_analyse",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_restore",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_remove",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_deploy_decoy",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_withdraw",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_allow_traffic_zone",
+      "score": -26.75234904762167,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_block_traffic_zone",
+      "score": -26.869464389975526,
+      "description": null,
+      "visit_count": 8,
+      "success_count": 0,
+      "average_reward": -19.88934386857417
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_monitor",
+      "score": -26.753994087188925,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_analyse",
+      "score": -26.671948097846755,
+      "description": null,
+      "visit_count": 9,
+      "success_count": 0,
+      "average_reward": -18.830832616591216
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_restore",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_remove",
+      "score": -7.1000000000000005,
+      "description": null,
+      "visit_count": 1,
+      "success_count": 0,
+      "average_reward": -23.666666666666668
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_deploy_decoy",
+      "score": -26.754000544949054,
+      "description": null,
+      "visit_count": 10,
+      "success_count": 0,
+      "average_reward": -18.40749441169995
+    },
+    {
+      "from": "attacker_sleep",
+      "to": "defender_sleep",
+      "score": 0.0,
+      "description": null,
+      "visit_count": 0,
+      "success_count": 0,
+      "average_reward": 0.0
+    }
+  ]
+}
