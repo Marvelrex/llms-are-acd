@@ -201,6 +201,25 @@ FEATURE_REGISTRY: Dict[str, _FeatureFn] = {
 }
 
 
+def sig_to_bucket_id(sig: Optional[str]) -> Optional[str]:
+    """Extract 3-feature coarse bucket from full state signature.
+
+    Keeps only comp=X, alerts=Y, step=Z (drops las=Z and as=Z).
+    Returns None if sig is None or 'default'.
+    Max ~36 unique buckets (4 comp × 3 alerts × 3 step).
+    """
+    if not sig or sig == "default":
+        return None
+    parts = {k: v for kv in sig.split("|") for k, v in [kv.split("=", 1)] if "=" in kv}
+    kept = {k: parts[k] for k in ("comp", "alerts", "step") if k in parts}
+    # Coarsen alerts: collapse 3/4/4p → "3p"
+    if kept.get("alerts") in ("3", "4", "4p"):
+        kept["alerts"] = "3p"
+    if len(kept) < 3:
+        return None
+    return f"comp={kept['comp']}|alerts={kept['alerts']}|step={kept['step']}"
+
+
 def compute_state_signature(
     observation: Any,
     *,

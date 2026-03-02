@@ -1,5 +1,6 @@
 import ast
 import json
+import math
 import random
 import re
 from dataclasses import asdict, dataclass
@@ -10,6 +11,42 @@ import networkx as nx
 from typing_extensions import Literal
 
 ACTION_GRAPH_FORMAT_VERSION = 2
+
+
+def edge_combined_score(
+    mean_contribution: float,
+    visit_count: int,
+    m2: float,
+    quality_scale: float,
+    *,
+    pessimistic_default: float = 0.0,
+) -> float:
+    """Unified combined score: quality + uncertainty.
+
+    Quality term: mean_contribution (running mean of credit-weighted advantage).
+    For unvisited edges (visit_count == 0), ``pessimistic_default`` is used instead
+    of mean_contribution to avoid the zero-initialization bias (where mc=0 appears
+    artificially "best" when all real rewards are negative).
+    Uncertainty term: ``EXPLORE_CAP * quality_scale / sqrt(visit_count + 1)`` plus an
+    optional variance contribution for edges with >= 2 visits.  The bonus decreases
+    smoothly with every additional visit (no plateau at low visit counts).
+    """
+    EXPLORE_CAP = 0.5     # exploration coefficient
+
+    quality = pessimistic_default if visit_count == 0 else mean_contribution
+
+    # Exploration bonus: decreases smoothly with visits, no plateau
+    explore_bonus = EXPLORE_CAP * quality_scale / math.sqrt(visit_count + 1)
+
+    # Variance contribution (additional uncertainty from high-variance edges)
+    var_bonus = 0.0
+    if visit_count >= 2:
+        variance = m2 / (visit_count - 1)
+        if variance > 0:
+            var_bonus = math.sqrt(variance) / math.sqrt(visit_count + 1)
+
+    uncertainty = explore_bonus + var_bonus
+    return quality + uncertainty
 
 
 @dataclass(frozen=True)
@@ -32,11 +69,21 @@ class ActionGraph:
     def __init__(self) -> None:
         self.graph = nx.DiGraph()
         # State-conditioned edge stats: state_signature -> from_id -> to_id -> stats dict.
-        # Each stats dict stores: score, visit_count, average_reward.
+        # Each stats dict stores: visit_count, mean_contribution, m2.
         #
         # Kept separate from NetworkX edge attributes for backwards compatibility:
         # older persisted graphs only contain global edge stats.
         self.state_edge_stats: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
+        # Coarse bucket-conditioned edge stats: bucket_id -> from_id -> to_id -> stats dict.
+        # Buckets are ~36 coarse states (comp × alerts × step), accumulating 25x faster than
+        # full state signatures. Used for mixed scoring via get_mixed_edge_stats().
+        self.bucket_edge_stats: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
+        # Reward magnitude anchor: updated by SelfEvolveDefender after each observe_round.
+        # Used by _compute_quality_scale as an environment-scale anchor for S_r.
+        self.reward_magnitude_anchor: float = 0.0
+        # Pessimistic default for unvisited edges: set to the current baseline so
+        # that mc=0 doesn't appear artificially "best" when all real rewards are negative.
+        self.baseline_default: float = 0.0
 
     def add_action_node(self, action: ActionNode) -> None:
         """Add a new action node, ensuring unique identifiers."""
@@ -67,10 +114,9 @@ class ActionGraph:
         self,
         from_id: str,
         to_id: str,
-        score: float = 0.0,
         description: Optional[str] = None,
     ) -> None:
-        """Create a legal transition and initialise its score."""
+        """Create a legal transition."""
         self._assert_node_exists(from_id)
         self._assert_node_exists(to_id)
 
@@ -83,10 +129,13 @@ class ActionGraph:
         self.graph.add_edge(
             from_id,
             to_id,
-            score=float(score),
             description=description,
             visit_count=0,
-            average_reward=0.0,
+            mean_contribution=0.0,
+            m2=0.0,
+            # [avg_ep_reward disabled]
+            # avg_ep_reward=0.0,
+            # ep_count=0,
         )
 
     def ensure_edge(
@@ -104,7 +153,7 @@ class ActionGraph:
         self._assert_node_exists(to_id)
         if self.graph.has_edge(from_id, to_id):
             return False
-        self.add_edge(from_id, to_id, score=0.0, description=description)
+        self.add_edge(from_id, to_id, description=description)
         return True
 
     def add_llm_score(self, node_id: str, score: float) -> None:
@@ -137,9 +186,12 @@ class ActionGraph:
             for edge in data:
                 u, v = edge.get("from"), edge.get("to")
                 if u in graph.graph and v in graph.graph and graph.graph.has_edge(u, v):
-                    graph.graph.edges[u, v]["score"] = edge.get("score", 0.0)
                     graph.graph.edges[u, v]["visit_count"] = edge.get("visit_count", 0)
-                    graph.graph.edges[u, v]["average_reward"] = edge.get("average_reward", 0.0)
+                    graph.graph.edges[u, v]["mean_contribution"] = edge.get("mean_contribution", edge.get("average_reward", 0.0))
+                    graph.graph.edges[u, v]["m2"] = edge.get("m2", 0.0)
+                    # [avg_ep_reward disabled]
+                    # graph.graph.edges[u, v]["avg_ep_reward"] = edge.get("avg_ep_reward", edge.get("average_reward", 0.0))
+                    # graph.graph.edges[u, v]["ep_count"] = edge.get("ep_count", 0)
             return graph
 
         if not isinstance(data, dict):
@@ -165,11 +217,17 @@ class ActionGraph:
             graph.graph.add_edge(
                 edge["from"],
                 edge["to"],
-                score=edge.get("score", 0.0),
                 description=edge.get("description"),
                 visit_count=edge.get("visit_count", 0),
-                average_reward=edge.get("average_reward", 0.0),
+                mean_contribution=edge.get("mean_contribution", edge.get("average_reward", 0.0)),
+                m2=edge.get("m2", 0.0),
+                # [avg_ep_reward disabled]
+                # avg_ep_reward=edge.get("avg_ep_reward", edge.get("average_reward", 0.0)),
+                # ep_count=edge.get("ep_count", 0),
             )
+
+        graph.reward_magnitude_anchor = float(data.get("reward_magnitude_anchor", 0.0))
+        graph.baseline_default = float(data.get("baseline_default", 0.0))
 
         # v2+: optional state-conditioned stats stored separately from the NetworkX edge attrs.
         if version >= 2:
@@ -187,28 +245,30 @@ class ActionGraph:
                     state_sig,
                     frm,
                     to,
-                    score=float(entry.get("score", 0.0) or 0.0),
                     visit_count=int(entry.get("visit_count", 0) or 0),
-                    average_reward=float(entry.get("average_reward", 0.0) or 0.0),
+                    mean_contribution=float(entry.get("mean_contribution", entry.get("average_reward", 0.0)) or 0.0),
+                    m2=float(entry.get("m2", 0.0) or 0.0),
                 )
         return graph
 
     def reset(self) -> None:
-        """Zero out scores and stats."""
+        """Zero out stats."""
         for _, _, data in self.graph.edges(data=True):
-            data["score"] = 0.0
             data["visit_count"] = 0
-            data["average_reward"] = 0.0
+            data["mean_contribution"] = 0.0
+            data["m2"] = 0.0
+            # [avg_ep_reward disabled]
+            # data["avg_ep_reward"] = 0.0
+            # data["ep_count"] = 0
         self.state_edge_stats = {}
 
-    def log_top_transitions(self, n: int = 10) -> List[Tuple[str, str, float]]:
+    def log_top_transitions(self, n: int = 10) -> List[Tuple[str, str, float, int]]:
         ranked = sorted(
             [
                 (
                     u,
                     v,
-                    data.get("score", 0.0),
-                    data.get("average_reward", 0.0),
+                    data.get("mean_contribution", 0.0),
                     data.get("visit_count", 0),
                 )
                 for u, v, data in self.graph.edges(data=True)
@@ -273,20 +333,26 @@ class ActionGraph:
             )
             if isinstance(state_stats, dict):
                 return {
-                    "score": float(state_stats.get("score", 0.0) or 0.0),
                     "visit_count": int(state_stats.get("visit_count", 0) or 0),
-                    "average_reward": float(state_stats.get("average_reward", 0.0) or 0.0),
+                    "mean_contribution": float(state_stats.get("mean_contribution", 0.0) or 0.0),
+                    "m2": float(state_stats.get("m2", 0.0) or 0.0),
+                    # [avg_ep_reward disabled]
+                    # "avg_ep_reward": float(global_data.get("avg_ep_reward", 0.0) or 0.0),
+                    # "ep_count": int(global_data.get("ep_count", 0) or 0),
                 }
 
         if backoff and self.graph.has_edge(from_id, to_id):
             data = self.graph.edges[from_id, to_id]
             return {
-                "score": float(data.get("score", 0.0) or 0.0),
                 "visit_count": int(data.get("visit_count", 0) or 0),
-                "average_reward": float(data.get("average_reward", 0.0) or 0.0),
+                "mean_contribution": float(data.get("mean_contribution", 0.0) or 0.0),
+                "m2": float(data.get("m2", 0.0) or 0.0),
+                # [avg_ep_reward disabled]
+                # "avg_ep_reward": float(data.get("avg_ep_reward", 0.0) or 0.0),
+                # "ep_count": int(data.get("ep_count", 0) or 0),
             }
 
-        return {"score": 0.0, "visit_count": 0, "average_reward": 0.0}
+        return {"visit_count": 0, "mean_contribution": 0.0, "m2": 0.0}
 
     def set_state_edge_stats(
         self,
@@ -294,41 +360,92 @@ class ActionGraph:
         from_id: str,
         to_id: str,
         *,
-        score: float,
         visit_count: int,
-        average_reward: float,
+        mean_contribution: float,
+        m2: float = 0.0,
     ) -> None:
         """Write state-conditioned stats for a particular (state_signature, edge)."""
         self._assert_node_exists(from_id)
         self._assert_node_exists(to_id)
         bucket = self.state_edge_stats.setdefault(str(state_signature), {}).setdefault(from_id, {})
         bucket[to_id] = {
-            "score": float(score),
             "visit_count": int(visit_count),
-            "average_reward": float(average_reward),
+            "mean_contribution": float(mean_contribution),
+            "m2": float(m2),
+        }
+
+    def set_bucket_edge_stats(
+        self,
+        bucket_id: str,
+        from_id: str,
+        to_id: str,
+        *,
+        visit_count: int,
+        mean_contribution: float,
+        m2: float = 0.0,
+    ) -> None:
+        """Write coarse-bucket-conditioned stats for a particular (bucket_id, edge)."""
+        bucket = self.bucket_edge_stats.setdefault(str(bucket_id), {}).setdefault(from_id, {})
+        bucket[to_id] = {
+            "visit_count": int(visit_count),
+            "mean_contribution": float(mean_contribution),
+            "m2": float(m2),
+        }
+
+    def get_bucket_edge_stats(
+        self,
+        bucket_id: Optional[str],
+        from_id: str,
+        to_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Return coarse-bucket-conditioned stats for an edge, or None if not found."""
+        if not bucket_id:
+            return None
+        return self.bucket_edge_stats.get(str(bucket_id), {}).get(from_id, {}).get(to_id)
+
+    def get_mixed_edge_stats(
+        self,
+        from_id: str,
+        to_id: str,
+        bucket_id: Optional[str],
+        lambda_state: float,
+        min_bucket_visits: int,
+    ) -> Dict[str, Any]:
+        """Return stats mixed between global and bucket-conditioned.
+
+        Mirrors get_edge_stats return format. When bucket has enough visits, mixes
+        global mean_contribution with bucket mean_contribution using lambda_state weight.
+        """
+        # Global stats (backoff=True gives us the NetworkX edge data)
+        global_stats = self.get_edge_stats(from_id, to_id, state_signature=None, backoff=True)
+        if not bucket_id:
+            return global_stats
+        bucket_raw = self.get_bucket_edge_stats(bucket_id, from_id, to_id)
+        if bucket_raw is None:
+            return global_stats
+        vc_b = int(bucket_raw.get("visit_count", 0) or 0)
+        if vc_b < int(min_bucket_visits):
+            return global_stats  # lambda_eff = 0
+        # lambda_eff = lambda_state
+        mc_g = float(global_stats.get("mean_contribution", 0.0) or 0.0)
+        mc_b = float(bucket_raw.get("mean_contribution", 0.0) or 0.0)
+        vc_g = int(global_stats.get("visit_count", 0) or 0)
+        m2_g = float(global_stats.get("m2", 0.0) or 0.0)
+        la = float(lambda_state)
+        return {
+            "visit_count": vc_g,  # use global visit count for exploration bonus
+            "mean_contribution": (1.0 - la) * mc_g + la * mc_b,
+            "m2": m2_g,
+            "_bucket_vc": vc_b,  # informational only
+            # [avg_ep_reward disabled]
+            # "avg_ep_reward": float(global_stats.get("avg_ep_reward", 0.0) or 0.0),
+            # "ep_count": int(global_stats.get("ep_count", 0) or 0),
         }
 
     def get_nodes_by_agent(self, agent_type: str) -> List[str]:
         return [
             node for node, data in self.graph.nodes(data=True) if data.get("agent_type") == agent_type
         ]
-
-    def update_edge_score(self, from_id: str, to_id: str, delta_score: float) -> None:
-        """Increment an edge's score by delta_score."""
-        self._assert_node_exists(from_id)
-        self._assert_node_exists(to_id)
-        if not self.graph.has_edge(from_id, to_id):
-            raise ValueError(f"Edge '{from_id}' -> '{to_id}' does not exist.")
-        current = float(self.graph.edges[from_id, to_id].get("score", 0.0))
-        self.graph.edges[from_id, to_id]["score"] = current + float(delta_score)
-
-    def get_edge_score(self, from_id: str, to_id: str) -> float:
-        """Return the current score for an edge (defaults to 0.0)."""
-        self._assert_node_exists(from_id)
-        self._assert_node_exists(to_id)
-        if not self.graph.has_edge(from_id, to_id):
-            raise ValueError(f"Edge '{from_id}' -> '{to_id}' does not exist.")
-        return float(self.graph.edges[from_id, to_id].get("score", 0.0))
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the graph to a dictionary."""
@@ -342,10 +459,13 @@ class ActionGraph:
             {
                 "from": u,
                 "to": v,
-                "score": data.get("score", 0.0),
                 "description": data.get("description"),
                 "visit_count": data.get("visit_count", 0),
-                "average_reward": data.get("average_reward", 0.0),
+                "mean_contribution": data.get("mean_contribution", 0.0),
+                "m2": data.get("m2", 0.0),
+                # [avg_ep_reward disabled]
+                # "avg_ep_reward": data.get("avg_ep_reward", 0.0),
+                # "ep_count": data.get("ep_count", 0),
             }
             for u, v, data in self.graph.edges(data=True)
         ]
@@ -360,18 +480,21 @@ class ActionGraph:
                             "state_signature": state_sig,
                             "from": frm,
                             "to": to,
-                            "score": float(stats.get("score", 0.0) or 0.0),
                             "visit_count": int(stats.get("visit_count", 0) or 0),
-                            "average_reward": float(stats.get("average_reward", 0.0) or 0.0),
+                            "mean_contribution": float(stats.get("mean_contribution", 0.0) or 0.0),
+                            "m2": float(stats.get("m2", 0.0) or 0.0),
                         }
                     )
 
-        return {
+        result = {
             "format_version": ACTION_GRAPH_FORMAT_VERSION,
             "nodes": nodes,
             "edges": edges,
             "state_edges": state_edges,
         }
+        result["reward_magnitude_anchor"] = self.reward_magnitude_anchor
+        result["baseline_default"] = self.baseline_default
+        return result
 
     def export_to_json(self, *, indent: int = 2) -> str:
         """Serialise the graph to a JSON string."""
@@ -412,6 +535,12 @@ class ActionGraph:
             for node in filtered_graph.nodes
         ]
 
+        # Edge widths scaled by episode visit count (log scale, min 0.5)
+        edge_widths = [
+            max(0.5, math.log(data.get("visit_count", 0) + 1) * 1.5)
+            for _, _, data in filtered_graph.edges(data=True)
+        ]
+
         fig, ax = plt.subplots(figsize=figsize)
         nx.draw(
             filtered_graph,
@@ -420,29 +549,92 @@ class ActionGraph:
             with_labels=with_labels,
             node_color=node_colors,
             edge_color="#7a7a7a",
+            width=edge_widths,
             linewidths=1.5,
             arrows=True,
         )
-        edge_labels = {(u, v): f"{data.get('score', 0):.1f}" for u, v, data in filtered_graph.edges(data=True)}
+        # Labels: mean_contribution (2dp), visit_count (episodes), total_traversals (steps)
+        edge_labels = {
+            (u, v): (
+                f"mc={data.get('mean_contribution', 0.0):.2f}\n"
+                f"n={data.get('visit_count', 0)} tt={data.get('total_traversals', 0)}"
+            )
+            for u, v, data in filtered_graph.edges(data=True)
+        }
         nx.draw_networkx_edge_labels(filtered_graph, pos, edge_labels=edge_labels, ax=ax, font_size=7)
         return fig, ax
 
 
+def _compute_quality_scale(nx_graph, graph=None, state_signature=None, reward_magnitude_anchor: float = 0.0) -> float:
+    """Compute robust spread of mean_contribution across all visited edges.
+
+    Uses a magnitude-aware floor so the scale never collapses to a tiny value
+    when the spread is near zero but absolute mean_contributions are large
+    (cold-start scenario).
+
+    S = max(S_mu, kappa * S_r, epsilon)
+      S_mu  = abs(p90 - p10 spread of mean_contributions)
+      S_r   = reward_magnitude_anchor if available, else median of absolute
+              mean_contributions across visited edges (fallback)
+      kappa = 0.3
+      epsilon = 1e-6
+    """
+    import statistics as _stats
+
+    values = []
+    for frm, to, data in nx_graph.edges(data=True):
+        if state_signature and hasattr(graph, "get_edge_stats"):
+            stats = graph.get_edge_stats(frm, to, state_signature=state_signature, backoff=True)
+            vc = int(stats.get("visit_count", 0) or 0)
+            mc = float(stats.get("mean_contribution", 0.0) or 0.0)
+        else:
+            vc = int(data.get("visit_count", 0) or 0)
+            mc = float(data.get("mean_contribution", 0.0) or 0.0)
+        if vc >= 1:
+            values.append(mc)
+
+    kappa = 0.3
+    epsilon = 1e-6
+
+    if len(values) < 2:
+        # Even with <2 visited edges, anchor to magnitude if available.
+        median_abs = abs(values[0]) if values else 0.0
+        s_r = reward_magnitude_anchor if reward_magnitude_anchor > 0 else median_abs
+        return max(kappa * s_r, epsilon)
+
+    values.sort()
+    lo_idx = max(0, int(len(values) * 0.1))
+    hi_idx = min(len(values) - 1, int(len(values) * 0.9))
+    s_mu = abs(values[hi_idx] - values[lo_idx])
+
+    median_abs = _stats.median(abs(v) for v in values)
+    s_r = reward_magnitude_anchor if reward_magnitude_anchor > 0 else median_abs
+
+    return max(s_mu, kappa * s_r, epsilon)
+
+
 def select_topk_actions_by_edge_score(
-    graph: nx.DiGraph,
+    graph,
     k: int = 5,
     score_weight: float = 1.0,
     visit_weight: float = 0.3,
     state_signature: Optional[str] = None,
+    bucket_id: Optional[str] = None,
+    lambda_state: float = 0.3,
+    min_bucket_visits: int = 5,
 ) -> List[str]:
     """
-    Rank defender actions by their outgoing defender->attacker edges, balancing score and exploration.
+    Rank defender actions by their outgoing defender->attacker edges using combined quality+uncertainty score.
 
     Args:
         graph: ActionGraph or raw NetworkX DiGraph containing defender/attacker nodes.
         k: number of unique defender actions to return.
-        score_weight: weight applied to the learned edge score.
-        visit_weight: weight applied to the exploration bonus 1 / (1 + visit_count).
+        score_weight: unused (kept for API compat).
+        visit_weight: unused (kept for API compat).
+        state_signature: optional state signature for state-conditioned stats.
+        bucket_id: optional coarse bucket id for mixed scoring (takes precedence over state_signature).
+        lambda_state: mixing weight for bucket stats when bucket visits sufficient.
+        min_bucket_visits: minimum bucket visits before lambda_state takes effect.
     """
     if k <= 0:
         return []
@@ -463,40 +655,43 @@ def select_topk_actions_by_edge_score(
         node for node, data in nx_graph.nodes(data=True) if data.get("agent_type") == "defender"
     ]
 
-    ranked_edges: List[Tuple[float, str, str, float, int]] = []
-    score_values: set[float] = set()
+    rma = graph.reward_magnitude_anchor if hasattr(graph, 'reward_magnitude_anchor') else 0.0
+    quality_scale = _compute_quality_scale(nx_graph, graph=graph, state_signature=state_signature, reward_magnitude_anchor=rma)
+    pess_default = graph.baseline_default if hasattr(graph, 'baseline_default') else 0.0
+
+    ranked_edges: List[Tuple[float, str, str]] = []
     for frm, to, data in nx_graph.edges(data=True):
         if not (_is_defender(frm) and _is_attacker(to)):
             continue
-        if state_signature and hasattr(graph, "get_edge_stats"):
+        if bucket_id and hasattr(graph, "get_mixed_edge_stats"):
+            stats = graph.get_mixed_edge_stats(frm, to, bucket_id, lambda_state, min_bucket_visits)
+            mc = float(stats.get("mean_contribution", 0.0) or 0.0)
+            vc = int(stats.get("visit_count", 0) or 0)
+            m2_val = float(stats.get("m2", 0.0) or 0.0)
+        elif state_signature and hasattr(graph, "get_edge_stats"):
             stats = graph.get_edge_stats(frm, to, state_signature=state_signature, backoff=True)
-            score = float(stats.get("score", 0.0) or 0.0)
-            visit_count = int(stats.get("visit_count", 0) or 0)
+            mc = float(stats.get("mean_contribution", 0.0) or 0.0)
+            vc = int(stats.get("visit_count", 0) or 0)
+            m2_val = float(stats.get("m2", 0.0) or 0.0)
         else:
-            score = float(data.get("score", 0.0) or 0.0)
-            visit_count = int(data.get("visit_count", 0) or 0)
-        score_values.add(score)
-        exploration_bonus = 1.0 / (1 + visit_count)
-        rank_score = score_weight * score + visit_weight * exploration_bonus
-        ranked_edges.append((rank_score, frm, to, score, visit_count))
-
-    # If all edges share the same score, return all defender actions in random order
-    # to avoid alphabetical bias that would always favour "defender_analyse".
-    if score_values and len(score_values) == 1:
-        shuffled = list(defenders_all)
-        random.shuffle(shuffled)
-        return shuffled
+            mc = float(data.get("mean_contribution", 0.0) or 0.0)
+            vc = int(data.get("visit_count", 0) or 0)
+            m2_val = float(data.get("m2", 0.0) or 0.0)
+        rank_score = edge_combined_score(mc, vc, m2_val, quality_scale, pessimistic_default=pess_default)
+        ranked_edges.append((rank_score, frm, to))
 
     if not ranked_edges:
         shuffled = list(defenders_all)[:max(k, 0)] if k > 0 else []
         random.shuffle(shuffled)
         return shuffled
 
-    ranked_edges.sort(key=lambda item: (-item[0], item[1], item[2]))
+    # Shuffle first so equal-score ties are randomly ordered (avoids alphabetical bias).
+    random.shuffle(ranked_edges)
+    ranked_edges.sort(key=lambda item: -item[0])  # stable sort preserves shuffle for ties
 
     selected: List[str] = []
     seen: set[str] = set()
-    for _, frm, _, _, _ in ranked_edges:
+    for _, frm, _ in ranked_edges:
         if len(selected) >= k:
             break
         if frm in seen:
@@ -504,14 +699,11 @@ def select_topk_actions_by_edge_score(
         seen.add(frm)
         selected.append(frm)
 
-    # Optional fill: prefer low-visit defenders, then higher-score edges.
+    # Fill remaining slots with defenders not yet selected.
     if len(selected) < k:
-        defenders = [
-            node for node, data in nx_graph.nodes(data=True) if data.get("agent_type") == "defender"
-        ]
-        remaining = [d for d in defenders if d not in seen]
+        remaining = [d for d in defenders_all if d not in seen]
 
-        filler: List[Tuple[int, float, str]] = []
+        filler: List[Tuple[float, str]] = []
         for node in remaining:
             if hasattr(graph, "get_outgoing_edges"):
                 outgoing = [
@@ -522,17 +714,18 @@ def select_topk_actions_by_edge_score(
                 ]
             else:
                 outgoing = list(nx_graph.edges(node, data=True))
-            if outgoing:
-                min_visit = min(int(ed[2].get("visit_count", 0) or 0) for ed in outgoing)
-                max_score = max(float(ed[2].get("score", 0.0) or 0.0) for ed in outgoing)
-            else:
-                min_visit = 0
-                max_score = 0.0
-            # Sort by lowest visits (exploration), then highest score (exploitation), then id.
-            filler.append((min_visit, -max_score, node))
+            best_score = edge_combined_score(0.0, 0, 0.0, quality_scale, pessimistic_default=pess_default)  # default for nodes with no edges
+            for ed in outgoing:
+                mc = float(ed[2].get("mean_contribution", 0.0) or 0.0)
+                vc = int(ed[2].get("visit_count", 0) or 0)
+                m2_val = float(ed[2].get("m2", 0.0) or 0.0)
+                s = edge_combined_score(mc, vc, m2_val, quality_scale, pessimistic_default=pess_default)
+                if s > best_score:
+                    best_score = s
+            filler.append((-best_score, node))
 
-        filler.sort(key=lambda item: (item[0], item[1], item[2]))
-        for _, _, node in filler:
+        filler.sort(key=lambda item: (item[0], item[1]))
+        for _, node in filler:
             if len(selected) >= k:
                 break
             seen.add(node)

@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import math
+import numpy as np
 
 from CybORG.Agents import BaseAgent
 from CybORG.Agents.LLMAgents.llm_adapter.action_graph import (
@@ -15,15 +16,132 @@ from CybORG.Agents.LLMAgents.llm_adapter.action_graph import (
     build_cage4_turn_graph,
     _camel_to_snake,
     select_topk_actions_by_edge_score,
+    edge_combined_score,
+    _compute_quality_scale,
 )
 from CybORG.Agents.LLMAgents.llm_adapter.graph_agent_config import GraphAgentConfig
-from CybORG.Agents.LLMAgents.llm_adapter.state_signature import compute_state_signature
+from CybORG.Agents.LLMAgents.llm_adapter.state_signature import compute_state_signature, sig_to_bucket_id
 from CybORG.Agents.LLMAgents.llm_adapter.self_evolve_defender import SelfEvolveDefender
 from CybORG.Agents.LLMAgents.llm_policy import LLMDefenderPolicy
 from CybORG.Simulator.Actions import Action, Sleep
 from CybORG.Agents.LLMAgents.llm_adapter import obs_formatter
 from CybORG.Agents.LLMAgents.llm_adapter.utils.logger import Logger
 from CybORG.Shared.Enums import TernaryEnum
+
+
+def _ucb_score(mean: float, n: int, N: int, c: float) -> float:
+    """UCB1 score for an edge.
+
+    Args:
+        mean: Welford running mean of frequency-boosted episode credit.
+        n: number of episodes this edge was updated (visit_count).
+        N: total episode updates across all edges from this action (sum of visit_counts).
+        c: exploration coefficient (config.ucb_c, default 1.0).
+
+    Returns inf for n<2 to guarantee under-visited edges are explored first.
+    """
+    if n < 2:
+        return float('inf')
+    return mean + c * math.sqrt(math.log(N + 1) / (n + 1))
+
+
+def _map_to_prior_scale(ucb_scores: List[float], tau: float = 1.0) -> List[float]:
+    """Map raw UCB scores to [1, 10] using robust IQR-sigmoid normalization.
+
+    Strategy:
+    - Use median + IQR for robustness to outliers.
+    - Sigmoid squashes z-scores to (0, 1), then scales to [1, 10].
+    - Falls back to rank-based mapping when IQR≈0 or <3 candidates.
+      The rank-based fallback guarantees spread even during cold-start.
+
+    Args:
+        ucb_scores: raw UCB scores for all candidates (may contain inf for unvisited).
+        tau: sigmoid sharpness. Lower = sharper separation.
+
+    Returns:
+        List of prior scores in [1, 10], same order as input.
+    """
+    scores = np.array(ucb_scores, dtype=float)
+
+    # Replace inf values with max_finite + 1 (unvisited edges explored first).
+    finite_mask = np.isfinite(scores)
+    if not finite_mask.all():
+        max_finite = float(scores[finite_mask].max()) if finite_mask.any() else 0.0
+        scores[~finite_mask] = max_finite + 1.0
+
+    if len(scores) < 3:
+        # Too few candidates — rank-based fallback guarantees spread.
+        ranks = np.argsort(np.argsort(scores)).astype(float)
+        n_candidates = max(len(scores) - 1, 1)
+        return (1.0 + 9.0 * ranks / n_candidates).tolist()
+
+    median = float(np.median(scores))
+    q75, q25 = float(np.percentile(scores, 75)), float(np.percentile(scores, 25))
+    iqr = q75 - q25
+
+    if iqr < 1e-8:
+        # All scores nearly identical — rank-based fallback still guarantees spread.
+        ranks = np.argsort(np.argsort(scores)).astype(float)
+        n_candidates = max(len(scores) - 1, 1)
+        return (1.0 + 9.0 * ranks / n_candidates).tolist()
+
+    z_scores = (scores - median) / (iqr + 1e-8)
+    sigmoid_scores = 1.0 / (1.0 + np.exp(-z_scores / tau))
+    priors = 1.0 + 9.0 * sigmoid_scores
+    return priors.tolist()
+
+
+def _compute_alpha(
+    prior_gap: float,
+    alpha_min: float = 0.4,
+    alpha_max: float = 0.8,
+    alpha_midpoint: float = 1.0,
+    alpha_steepness: float = 2.0,
+) -> float:
+    """Compute graph weight in blend based on prior confidence.
+
+    The prior_gap is max_prior - second_best_prior on [1, 10] scale.
+    Larger gap → graph more confident → graph gets more weight.
+
+    Returns alpha in [alpha_min, alpha_max]:
+    - alpha_min: flat priors, LLM leads with light graph input.
+    - alpha_max: sharp priors, graph strongly guides.
+    The LLM ALWAYS retains at least (1 - alpha_max) = 20% weight.
+    """
+    raw = alpha_min + (alpha_max - alpha_min) * (
+        1.0 / (1.0 + math.exp(-alpha_steepness * (prior_gap - alpha_midpoint)))
+    )
+    return min(max(raw, alpha_min), alpha_max)
+
+
+def _blend_scores(
+    priors: Dict[str, float],
+    llm_ranking: List[str],
+    alpha: float,
+) -> Dict[str, float]:
+    """Weighted blend of graph prior and LLM rank-based score.
+
+    Converts LLM ranking to [1, 10] (best=10, worst=1), then blends
+    with graph priors: blended = alpha * prior + (1-alpha) * llm_score.
+
+    Args:
+        priors: graph-computed prior scores [1, 10], keyed by action name.
+        llm_ranking: LLM's preferred ordering, best first.
+        alpha: graph weight in [alpha_min, alpha_max].
+
+    Returns:
+        Blended scores keyed by action name; higher = better.
+    """
+    n = len(llm_ranking)
+    llm_scores: Dict[str, float] = {}
+    for rank, action in enumerate(llm_ranking):
+        llm_scores[action] = 10.0 - (9.0 * rank / max(n - 1, 1)) if n > 1 else 10.0
+
+    blended: Dict[str, float] = {}
+    for action, prior in priors.items():
+        llm_score = llm_scores.get(action, 5.0)  # midpoint for unranked actions
+        blended[action] = alpha * prior + (1.0 - alpha) * llm_score
+    return blended
 
 
 def action_to_node_id(agent_name: str, action: Action) -> str:
@@ -38,7 +156,7 @@ class SelfEvolvingGraphAgent(BaseAgent):
         self,
         name: str,
         graph: ActionGraph,
-        reward_decay: float = 0.9,
+        reward_decay: float = 0.8,
         prune_threshold: float = -3.0,
         log_dir: Optional[Path] = None,
         persist_path: Optional[Path] = None,
@@ -61,6 +179,8 @@ class SelfEvolvingGraphAgent(BaseAgent):
             baseline_beta=self.config.baseline_beta,
             baseline_scope=self.config.baseline_scope,
             use_state_conditioning=self.config.use_state_conditioning,
+            ema_beta=float(getattr(self.config, 'ema_beta', 0.03)),
+            reward_clip=float(getattr(self.config, 'reward_clip', 3.0)),
         )
         self.prune_threshold = prune_threshold
         self.trace: List[str] = []
@@ -143,6 +263,42 @@ class SelfEvolvingGraphAgent(BaseAgent):
     ) -> Dict[str, float]:
         """No-op: streak penalties removed. Returns empty dict for logging compatibility."""
         return {}
+
+    _REMEDIATION_ACTIONS = {"defender_remove", "defender_restore"}
+    _ANALYSE_ACTION = "defender_analyse"
+    _MAX_CONSECUTIVE_ANALYSE = 3
+
+    def _apply_analyse_cap(
+        self,
+        per_action_scores: Dict[str, Dict[str, float]],
+        candidates: List[str],
+    ) -> bool:
+        """If Analyse has been chosen >= _MAX_CONSECUTIVE_ANALYSE times in a row,
+        boost Remove/Restore scores and penalize Analyse to force remediation.
+        Returns True if the cap was applied."""
+        recent = list(self._recent_def_actions)
+        if len(recent) < self._MAX_CONSECUTIVE_ANALYSE:
+            return False
+
+        tail = recent[-self._MAX_CONSECUTIVE_ANALYSE:]
+        if not all(a == self._ANALYSE_ACTION for a in tail):
+            return False
+
+        # Cap triggered: boost remediation, penalize Analyse
+        remediation_in_candidates = [c for c in candidates if c in self._REMEDIATION_ACTIONS]
+        if not remediation_in_candidates:
+            return False
+
+        for cid, entry in per_action_scores.items():
+            if cid == self._ANALYSE_ACTION:
+                # Penalize Analyse heavily
+                entry["score"] = max(1.0, entry["score"] - 3.0)
+                entry["confidence"] = max(0.1, entry["confidence"] * 0.5)
+            elif cid in self._REMEDIATION_ACTIONS:
+                # Boost Remove/Restore
+                entry["score"] = min(10.0, entry["score"] + 2.0)
+                entry["confidence"] = min(1.0, entry["confidence"] + 0.2)
+        return True
 
     def _detect_compromise(self, observation: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """Best-effort compromise detection driven by observation (cheap + deterministic).
@@ -365,6 +521,9 @@ class SelfEvolvingGraphAgent(BaseAgent):
             if state_signature:
                 self._episode_state_signatures.add(state_signature)
 
+        # Coarse bucket_id (~36 possible values) for faster-accumulating mixed priors.
+        bucket_id: Optional[str] = sig_to_bucket_id(state_signature) if state_signature else None
+
         prev_node = self.trace[-1] if self.trace else None
         # Adaptive candidate K based on recent diversity.
         recent_unique = len(set(aid for bucket in self._candidate_history for aid in bucket))
@@ -377,6 +536,9 @@ class SelfEvolvingGraphAgent(BaseAgent):
             score_weight=self.candidate_score_weight,
             visit_weight=self.candidate_visit_weight,
             state_signature=state_signature if self.config.use_state_conditioning else None,
+            bucket_id=bucket_id,
+            lambda_state=float(getattr(self.config, "lambda_state", 0.3)),
+            min_bucket_visits=int(getattr(self.config, "min_bucket_visits", 5)),
         )
         if not candidates:
             candidates = self.graph.get_nodes_by_agent("defender")
@@ -458,18 +620,17 @@ class SelfEvolvingGraphAgent(BaseAgent):
         num_candidates_after_diversify = len(candidates)
         traffic_candidates_included = any(cid in disruptive for cid in candidates)
 
-        priors = {
-            cid: self._graph_prior(
-                cid,
-                state_signature=state_signature if self.config.use_state_conditioning else None,
-            )
-            for cid in candidates
-        }
+        priors = self._graph_priors_batch(
+            candidates,
+            state_signature=state_signature if self.config.use_state_conditioning else None,
+            bucket_id=bucket_id,
+        )
         prompt_raw = self.build_llm_prompt(
             observation,
             candidates,
             priors,
             state_signature=state_signature if self.config.use_state_conditioning else None,
+            bucket_id=bucket_id,
         )
         prompt_contains_banned_pre = self._prompt_contains_banned_tokens(prompt_raw)
         if prompt_contains_banned_pre and not self._warned_banned_prompt_tokens:
@@ -518,35 +679,54 @@ class SelfEvolvingGraphAgent(BaseAgent):
             final_scores[cid] = prior + exploration_bonus
         false_repeat_penalties = self._apply_false_repeat_penalty(observation, final_scores)
 
+        # Fix 3: Compute adaptive blend weight from prior gap.
+        sorted_prior_vals = sorted(priors.values(), reverse=True)
+        prior_gap = (sorted_prior_vals[0] - sorted_prior_vals[1]) if len(sorted_prior_vals) >= 2 else 0.0
+        alpha = _compute_alpha(
+            prior_gap,
+            alpha_min=float(getattr(self.config, 'alpha_min', 0.4)),
+            alpha_max=float(getattr(self.config, 'alpha_max', 0.8)),
+            alpha_midpoint=float(getattr(self.config, 'alpha_midpoint', 1.0)),
+            alpha_steepness=float(getattr(self.config, 'alpha_steepness', 2.0)),
+        )
+
         gate_g: Optional[float] = None
         gate_info: Dict[str, Any] = {}
         chosen_from = "GRAPH_FALLBACK"
         traffic_gate_applied = False
         traffic_gate_reason = ""
+        analyse_cap_applied = False
 
         invalid_reasons: List[str] = []
         if not llm_valid:
             invalid_reasons.append("invalid_llm")
-        elif llm_confidence < conf_min:
-            invalid_reasons.append("low_confidence")
 
         chosen_id: str
         traffic_score_caps: Dict[str, Dict[str, float]] = {}
         best_from_llm: Optional[str] = None
         best_after_postprocess: Optional[str] = None
 
-        if llm_valid and llm_confidence >= conf_min and ranked_actions:
-            chosen_from = "LLM"
-            gate_g, gate_info = self._compute_circuit_breaker_gate(llm_confidence, graph_priors=priors)
+        # Fix 3: Always take the LLM path if valid (no confidence gate).
+        # Blend graph priors and LLM ranking with adaptive alpha.
+        if llm_valid and ranked_actions:
+            chosen_from = "graph_guided_llm"
+            if self.config.disable_graph:
+                gate_g = 0.0  # pure LLM when graph disabled
+                gate_info = {"gate_g": 0.0, "graph_disabled": True, "alpha": 0.0}
+                for cid in candidates:
+                    final_scores[cid] = float(priors.get(cid, 5.5))
+            else:
+                # Compute gate_g for legacy diagnostics (not used for gating decisions).
+                gate_g, gate_info = self._compute_circuit_breaker_gate(llm_confidence, graph_priors=priors)
 
-            # Bug-4 fix: blend LLM scores with graph priors using gate_g.
-            # blended = gate_g * llm_score + (1 - gate_g) * graph_prior
-            if per_action_scores and priors:
-                for aid in list(per_action_scores.keys()):
-                    llm_sc = float(per_action_scores[aid].get("score", 5.5))
-                    graph_sc = float(priors.get(aid, 5.5))
-                    blended = gate_g * llm_sc + (1.0 - gate_g) * graph_sc
-                    per_action_scores[aid]["score"] = float(min(10.0, max(1.0, blended)))
+            # Adaptive blend: final_scores = alpha * prior + (1-alpha) * llm_rank_score
+            if ranked_actions and not self.config.disable_graph:
+                blended = _blend_scores(priors, ranked_actions, alpha)
+                for aid in blended:
+                    final_scores[aid] = blended[aid]
+                    # Keep per_action_scores aligned.
+                    if per_action_scores and aid in per_action_scores:
+                        per_action_scores[aid]["score"] = final_scores[aid]
 
             # Default traffic risk to high unless we have explicit traffic evidence this step.
             if not has_traffic_evidence:
@@ -591,6 +771,9 @@ class SelfEvolvingGraphAgent(BaseAgent):
                     if per_action_scores:
                         per_action_scores = {aid: per_action_scores[aid] for aid in ranked_actions if aid in per_action_scores}
 
+            # Analyse cap: if Analyse repeated too many times, force remediation.
+            analyse_cap_applied = self._apply_analyse_cap(per_action_scores, candidates) if per_action_scores else False
+
             # Ensure ranking is derived from numeric scores (score desc, confidence desc, id stable).
             if per_action_scores:
                 ranked_actions = sorted(
@@ -624,6 +807,19 @@ class SelfEvolvingGraphAgent(BaseAgent):
                 picked = self.select_top_action(final_scores, candidates)
             chosen_id = str(picked)
         else:
+            # Invalid LLM (parse failure) → graph priors only, no LLM influence.
+            chosen_from = "GRAPH_FALLBACK"
+            for cid in candidates:
+                final_scores[cid] = float(priors.get(cid, 5.5))
+            # Apply analyse cap to graph fallback scores.
+            recent = list(self._recent_def_actions)
+            if (len(recent) >= self._MAX_CONSECUTIVE_ANALYSE
+                    and all(a == self._ANALYSE_ACTION for a in recent[-self._MAX_CONSECUTIVE_ANALYSE:])):
+                for cid in final_scores:
+                    if cid == self._ANALYSE_ACTION:
+                        final_scores[cid] -= 3.0
+                    elif cid in self._REMEDIATION_ACTIONS:
+                        final_scores[cid] += 2.0
             chosen_id = self.select_top_action(final_scores, candidates)
 
         # LLM scores for logging/visualization. Prefer numeric per-action scores when present.
@@ -652,6 +848,8 @@ class SelfEvolvingGraphAgent(BaseAgent):
             "invalid_llm_reasons": invalid_reasons,
             "chosen_from": str(chosen_from),
             "gate_g": gate_g,
+            "prior_gap": round(float(prior_gap), 4),
+            "alpha": round(float(alpha), 4),
             "prompt_contains_banned_incident_words_pre": bool(prompt_contains_banned_pre),
             "prompt_contains_banned_incident_words_post": bool(prompt_contains_banned_post),
             # Backwards-compatible aliases for older analysis scripts.
@@ -669,6 +867,7 @@ class SelfEvolvingGraphAgent(BaseAgent):
             "traffic_gate_applied": bool(traffic_gate_applied),
             "traffic_gate_reason": traffic_gate_reason,
             "traffic_evidence": traffic_evidence,
+            "analyse_cap_applied": bool(analyse_cap_applied),
         }
         if gate_info:
             llm_debug["adaptive_gate"] = gate_info
@@ -866,11 +1065,14 @@ class SelfEvolvingGraphAgent(BaseAgent):
             return
         self._episode_finalized = True
         success = total_reward > 0
-        update_info = self.learner.observe_round(
-            self.trace,
-            {"success": success, "reward": total_reward},
-            state_signatures=self.state_trace,
-        )
+        if self.config.disable_graph:
+            update_info = {"baseline": 0.0, "advantage": 0.0, "edges_updated": 0, "state_edges_updated": 0}
+        else:
+            update_info = self.learner.observe_round(
+                self.trace,
+                {"success": success, "reward": total_reward},
+                state_signatures=self.state_trace,
+            )
         pruned = []  # Pruning disabled; selection already constrains via top-K
         self._save_scores()
         self._visualize_graph()
@@ -942,43 +1144,63 @@ class SelfEvolvingGraphAgent(BaseAgent):
         graph_priors: Dict[str, float],
         top_k: int = 3,
         state_signature: Optional[str] = None,
+        bucket_id: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         prompts: List[Dict[str, str]] = []
-        system_msg = (
-            "You are a CAGE-4 Blue defender. Choose the best next action from the provided candidates.\n"
-            "You will receive an observation summary plus ActionGraph priors/evidence/visits (hints from past rollouts).\n"
-            "Return ONLY a raw JSON object (no Markdown, no ``` fences) with this exact schema:\n"
-            "{\n"
-            "  \"actions\": {\n"
-            "    \"<action_id>\": {\"score\": 1.0, \"confidence\": 0.0}\n"
-            "  },\n"
-            "  \"best\": \"<action_id>\",\n"
-            "  \"justification\": \"1-2 sentences; cite 1-2 observation signals AND how you used the graph prior\",\n"
-            "  \"disruption_risk\": {\n"
-            "    \"defender_block_traffic_zone\": \"low|med|high\",\n"
-            "    \"defender_allow_traffic_zone\": \"low|med|high\"\n"
-            "  }\n"
-            "}\n"
-            "\n"
-            "ActionGraph Prior Usage Rules:\n"
-            "- Priors range from 1.0 (historically poor) to 10.0 (historically excellent), default is 5.5 (no data yet).\n"
-            "- Your score for each action should START from its prior value, then adjust based on current observation.\n"
-            "- prior > 6.5 with visits > 5: This action historically works well. Bias your score UP by +1 to +2.\n"
-            "- prior < 4.5 with visits > 5: This action historically performs poorly. Bias your score DOWN by -1 to -2.\n"
-            "- prior near 5.5 or visits = 0: No historical data. Rely purely on current observation.\n"
-            "- visits > 10: The prior is statistically reliable, weight it heavily.\n"
-            "- visits < 3: The prior is noisy, trust current observation more.\n"
-            "- Key principle: The graph prior represents learned experience from many episodes. Respect it unless current observation strongly contradicts it.\n"
-            "\n"
-            "Rules:\n"
-            "- \"actions\" MUST include EVERY candidate action_id exactly once (no extras, no missing).\n"
-            "- score MUST be a float in [1.0, 10.0]. START from the graph prior, adjust +/-2 based on observation.\n"
-            "- confidence MUST be a float in [0.0, 1.0] reflecting YOUR certainty, independent of score.\n"
-            "- \"best\" MUST be one of the candidates and MUST equal the argmax score (tie-break by highest confidence).\n"
-            "- Traffic actions: default disruption_risk=\"high\" unless explicit traffic-related evidence exists; only score traffic actions high when evidence supports it.\n"
-            "- In \"justification\", briefly explain why the other candidate actions were NOT chosen (e.g. lack of evidence, poor prior, high disruption risk).\n"
-            "- Output MUST be valid JSON only (no extra text).\n"
-        )
+        disable_graph = bool(getattr(self.config, 'disable_graph', False))
+
+        if disable_graph:
+            system_msg = (
+                "You are a CAGE-4 Blue defender. Rank the provided candidate actions best-to-worst.\n"
+                "\n"
+                "Return ONLY a raw JSON object (no Markdown, no ``` fences) with this exact schema:\n"
+                "{\n"
+                "  \"ranked_actions\": [\"<action_id>\", \"...\"],\n"
+                "  \"confidence\": 0.0,\n"
+                "  \"brief_reason\": \"1-2 sentences citing 1-2 observation signals\"\n"
+                "}\n"
+                "\n"
+                "Hard rules:\n"
+                "- ranked_actions MUST include EVERY candidate action_id exactly once "
+                "(no missing, no duplicates, no extras).\n"
+                "- best action is ranked_actions[0].\n"
+                "- confidence is a float in [0.0, 1.0] reflecting certainty of your ranking.\n"
+                "- brief_reason: cite observation signals only.\n"
+                "- Do NOT output per-action scores. Do NOT output an \"actions\" dict. "
+                "Do NOT output extra keys.\n"
+                "- If uncertain, still output a full ranking and express uncertainty via "
+                "low confidence (< 0.4).\n"
+            )
+        else:
+            system_msg = (
+                "You are a CAGE-4 Blue defender. Rank the provided candidate actions best-to-worst.\n"
+                "\n"
+                "Return ONLY a raw JSON object (no Markdown, no ``` fences) with this exact schema:\n"
+                "{\n"
+                "  \"ranked_actions\": [\"<action_id>\", \"...\"],\n"
+                "  \"confidence\": 0.0,\n"
+                "  \"brief_reason\": \"1-2 sentences citing 1-2 observation signals\"\n"
+                "}\n"
+                "\n"
+                "Hard rules:\n"
+                "- ranked_actions MUST include EVERY candidate action_id exactly once "
+                "(no missing, no duplicates, no extras).\n"
+                "- best action is ranked_actions[0].\n"
+                "- confidence is a float in [0.0, 1.0] reflecting certainty of your ranking.\n"
+                "- brief_reason: cite observation signals; mention whether graph priors were used.\n"
+                "- Do NOT output per-action scores. Do NOT output an \"actions\" dict. "
+                "Do NOT output extra keys.\n"
+                "- If uncertain, still output a full ranking and express uncertainty via "
+                "low confidence (< 0.4).\n"
+                "\n"
+                "Signal legend (shown per candidate):\n"
+                "  prior: graph-based score mapped to [1,10]; 10=historically best, "
+                "1=historically worst, 5.5=no data yet.\n"
+                "  visits: total times this action appeared in the graph trajectory.\n"
+                "\n"
+                "Candidates are listed in descending prior order. "
+                "Use prior as a starting hint; override when observation clearly indicates otherwise.\n"
+            )
         prompts.append({"role": "system", "content": system_msg})
 
         # Observation summary
@@ -991,34 +1213,66 @@ class SelfEvolvingGraphAgent(BaseAgent):
         )
         prompts.append({"role": "user", "content": commvector_legend})
 
-        # Graph-aware augmentation (safe by default: no attacker action IDs).
-        env_summary = f"Mission phase: {observation.get('phase', '?')}. Hosts seen: {len(observation.keys())}"
-        blocks: List[str] = []
-        for cid in candidates:
-            label = self.graph.graph.nodes[cid]["action"].label if cid in self.graph.graph else cid
-            prior = float(graph_priors.get(cid, 5.5))
-            summary = self._risk_summary(
-                cid,
-                state_signature=state_signature if self.config.use_state_conditioning else None,
+        # Recent action history so the LLM avoids repetition.
+        recent_actions = list(self._recent_def_actions)[-5:]
+        if recent_actions:
+            history_lines = []
+            for i, aid in enumerate(recent_actions):
+                label = self.graph.graph.nodes[aid]["action"].label if aid in self.graph.graph else aid
+                history_lines.append(f"  {i+1}. {label}")
+            history_block = (
+                "Your recent actions (oldest to newest):\n"
+                + "\n".join(history_lines)
+                + "\n"
+                + "IMPORTANT: Avoid repeating the same action type more than 2-3 times in a row. "
+                + "If you have been Analysing repeatedly, switch to Remove or Restore to act on findings.\n"
             )
-            visits = int(summary.get("visits", 0) or 0)
-            evidence = float(summary.get("evidence", 0.0) or 0.0)
-            resp_seen = int(summary.get("responses_seen", 0) or 0)
-            blocks.append(
-                f"{cid} ({label}) prior={prior:.2f} evidence={evidence:.2f} visits={visits} "
-                f"resp_seen={resp_seen}"
-            )
+            prompts.append({"role": "user", "content": history_block})
 
-        graph_prompt = (
-            "ActionGraph priors (optional hints; may be noisy):\n"
-            f"{env_summary}\n"
-            + (f"State signature: {state_signature}\n" if state_signature else "")
-            + "\n".join(blocks)
-            + "\n\n"
-            + f"Candidates (action_id list): {json.dumps(list(candidates))}\n"
-            + "Return JSON only using the schema from the system message."
-        )
-        prompts.append({"role": "user", "content": graph_prompt})
+        if disable_graph:
+            # No graph context: show candidates as plain labeled list in arbitrary order.
+            env_summary = f"Mission phase: {observation.get('phase', '?')}. Hosts seen: {len(observation.keys())}"
+            lines = []
+            for cid in candidates:
+                label = self.graph.graph.nodes[cid]["action"].label if cid in self.graph.graph else cid
+                lines.append(f"{cid} ({label})")
+            candidate_prompt = (
+                f"{env_summary}\n"
+                + "\n".join(lines)
+                + "\n\n"
+                + f"Candidates (action_id list): {json.dumps(candidates)}\n"
+                + "Return JSON only using the schema from the system message."
+            )
+            prompts.append({"role": "user", "content": candidate_prompt})
+        else:
+            # Sort candidates by descending prior before building the candidates block.
+            sorted_candidates = sorted(candidates, key=lambda c: -float(graph_priors.get(c, 5.5)))
+
+            # Graph-aware augmentation (safe by default: no attacker action IDs).
+            env_summary = f"Mission phase: {observation.get('phase', '?')}. Hosts seen: {len(observation.keys())}"
+            blocks: List[str] = []
+            for cid in sorted_candidates:
+                label = self.graph.graph.nodes[cid]["action"].label if cid in self.graph.graph else cid
+                prior = float(graph_priors.get(cid, 5.5))
+                visits = 0
+                if cid in self.graph.graph:
+                    edges_out = self.graph.get_outgoing_edges(cid, state_signature=None, backoff=True)
+                    visits = int(sum(int(s.get("visit_count", 0) or 0) for _, _, s in edges_out))
+                blocks.append(f"{cid} ({label}) prior={prior:.2f} visits={visits}")
+                # [avg_ep_reward disabled] ep_score removed — all actions share the same global
+                # episode mean (~-278 for all edges), zero differentiation between actions.
+                # Needs redesign (per-step credit or counterfactual) before re-enabling.
+
+            graph_prompt = (
+                "ActionGraph priors (candidates listed in descending prior order):\n"
+                f"{env_summary}\n"
+                + (f"State signature: {state_signature}\n" if state_signature else "")
+                + "\n".join(blocks)
+                + "\n\n"
+                + f"Candidates (action_id list): {json.dumps(sorted_candidates)}\n"
+                + "Return JSON only using the schema from the system message."
+            )
+            prompts.append({"role": "user", "content": graph_prompt})
         return prompts
 
     def _prompt_contains_banned_tokens(self, prompt: List[Dict[str, str]]) -> bool:
@@ -1304,7 +1558,45 @@ class SelfEvolvingGraphAgent(BaseAgent):
                 debug["parse_json_error"] = True
 
         if isinstance(data, dict):
-            # New (scored) schema:
+            # Primary: rank-only schema (new format prompted by current system message).
+            # {
+            #   "ranked_actions": ["<action_id>", ...],
+            #   "confidence": 0-1,
+            #   "brief_reason": "..."
+            # }
+            if "ranked_actions" in data and isinstance(data.get("ranked_actions"), list):
+                debug["schema"] = "rank_only"
+                ra = data["ranked_actions"]
+                conf_raw = data.get("confidence", 0.5)
+                reason = data.get("brief_reason", "") or data.get("justification", "")
+                if isinstance(reason, str):
+                    justification = reason.strip()
+
+                cand_set = set(candidates)
+                # Strict permutation check: must be exact permutation of candidates.
+                ra_strs = [str(a) for a in ra if isinstance(a, str)]
+                if (
+                    set(ra_strs) == cand_set
+                    and len(ra_strs) == len(candidates)
+                    and len(ra_strs) == len(set(ra_strs))
+                ):
+                    llm_valid = True
+                    ranked_actions = ra_strs
+                    confidence = float(min(1.0, max(0.0, float(conf_raw) if isinstance(conf_raw, (int, float)) else 0.5)))
+                    per_action_scores = {}
+                    if ranked_actions:
+                        debug["best"] = ranked_actions[0]
+                else:
+                    llm_valid = False
+                    ranked_actions = []
+                    confidence = float(min(1.0, max(0.0, float(conf_raw) if isinstance(conf_raw, (int, float)) else 0.5)))
+                    per_action_scores = {}
+                    debug["invalid_reasons"].append("ranked_actions_not_valid_permutation")
+
+                confidence = float(min(1.0, max(0.0, confidence)))
+                return ranked_actions, confidence, justification, disruption_risk, llm_valid, debug, per_action_scores
+
+            # Fallback: scored_actions schema (legacy or backward-compat responses).
             # {
             #   "actions": {"<action_id>": {"score": 1-10, "confidence": 0-1}},
             #   "best": "<action_id>",
@@ -1569,12 +1861,12 @@ class SelfEvolvingGraphAgent(BaseAgent):
             return False
 
     def _graph_based_scores(self, candidates: List[str]) -> Dict[str, float]:
-        # Legacy fallback; uses simple average of outgoing edge scores.
+        # Fallback; uses simple average of outgoing edge mean_contribution.
         scores: Dict[str, float] = {}
         for cid in candidates:
             outgoing = self.graph.get_outgoing_edges(cid)
             if outgoing:
-                avg = sum(e[2].get("score", 0.0) for e in outgoing) / len(outgoing)
+                avg = sum(float(e[2].get("mean_contribution", 0.0) or 0.0) for e in outgoing) / len(outgoing)
             else:
                 avg = 0.0
             scores[cid] = avg
@@ -2166,33 +2458,139 @@ class SelfEvolvingGraphAgent(BaseAgent):
         return self._clamp01(float(g))
 
     # --- Confidence-aware helpers ---
-    def _graph_prior(self, action_id: str, *, state_signature: Optional[str] = None) -> float:
-        """Visit-weighted mean edge score, mapped to 1-10 via logistic.
 
-        Sigmoid divisor is 2.0 (steeper) so that small edge score changes
-        produce meaningful prior shifts:
-            edge_score=0 → prior=5.5, edge_score=1 → prior≈6.6, edge_score=2 → prior≈7.6
+    def _get_quality_scale(self) -> float:
+        """Compute robust spread of mean_contribution across all visited edges.
+
+        Uses a magnitude-aware floor so the scale never collapses to a tiny value
+        when the spread is near zero but absolute mean_contributions are large.
+
+        S = max(S_mu, kappa * S_r, epsilon)
         """
+        import statistics as _stats
+
+        rma = getattr(self.graph, 'reward_magnitude_anchor', 0.0)
+
+        values = []
+        for _, _, data in self.graph.graph.edges(data=True):
+            if int(data.get("visit_count", 0) or 0) >= 1:
+                values.append(float(data.get("mean_contribution", 0.0) or 0.0))
+
+        kappa = 0.3
+        epsilon = 1e-6
+
+        if len(values) < 2:
+            median_abs = abs(values[0]) if values else 0.0
+            s_r = rma if rma > 0 else median_abs
+            return max(kappa * s_r, epsilon)
+
+        values.sort()
+        # Use 10th-90th percentile spread for robustness
+        lo_idx = max(0, int(len(values) * 0.1))
+        hi_idx = min(len(values) - 1, int(len(values) * 0.9))
+        s_mu = abs(values[hi_idx] - values[lo_idx])
+
+        median_abs = _stats.median(abs(v) for v in values)
+        s_r = rma if rma > 0 else median_abs
+
+        return max(s_mu, kappa * s_r, epsilon)
+
+    def _graph_prior_raw(
+        self,
+        action_id: str,
+        *,
+        state_signature: Optional[str] = None,
+        bucket_id: Optional[str] = None,
+    ) -> Optional[float]:
+        """Compute UCB score for an action using its best outgoing edge.
+
+        Fix 2: Replaces edge_combined_score with UCB scoring.
+        Returns inf for actions with unvisited edges (n<2) to guarantee exploration.
+        Returns None if the action has no outgoing edges at all.
+
+        When bucket_id is provided, uses mixed (global + bucket-conditioned) stats.
+        """
+        if self.config.disable_graph:
+            return None
         if action_id not in self.graph.graph:
-            return 5.5
-        edges = self.graph.get_outgoing_edges(
-            action_id,
-            state_signature=state_signature if self.config.use_state_conditioning else None,
-            backoff=True,
-        )
-        if not edges:
-            return 5.5
-        weighted_sum = 0.0
-        weight_total = 0.0
-        for _to, _label, stats in edges:
-            score = float(stats.get("score", 0.0) or 0.0)
-            visits = int(stats.get("visit_count", 0) or 0)
-            w = math.log(1 + visits) + 1.0
-            weighted_sum += score * w
-            weight_total += w
-        prior_raw = weighted_sum / weight_total if weight_total else 0.0
-        prior_norm = 1.0 + 9.0 * (1.0 / (1.0 + math.exp(-prior_raw / 2.0)))
-        return min(10.0, max(1.0, prior_norm))
+            return None
+
+        c = float(getattr(self.config, 'ucb_c', 1.0))
+
+        if bucket_id and hasattr(self.graph, 'get_mixed_edge_stats'):
+            lambda_state = float(getattr(self.config, 'lambda_state', 0.3))
+            min_bucket_visits = int(getattr(self.config, 'min_bucket_visits', 5))
+            edges_out = list(self.graph.graph.edges(action_id, data=True))
+            if not edges_out:
+                return None
+            # N = sum of episode counts across all outgoing edges from this action
+            N = sum(
+                int(self.graph.get_mixed_edge_stats(
+                    action_id, to_id, bucket_id, lambda_state, min_bucket_visits
+                ).get("visit_count", 0) or 0)
+                for _, to_id, _ in edges_out
+            )
+            best: Optional[float] = None
+            for _, to_id, _ in edges_out:
+                stats = self.graph.get_mixed_edge_stats(
+                    action_id, to_id, bucket_id, lambda_state, min_bucket_visits
+                )
+                mc = float(stats.get("mean_contribution", 0.0) or 0.0)
+                vc = int(stats.get("visit_count", 0) or 0)
+                score = _ucb_score(mc, vc, N, c)
+                if best is None or score > best:
+                    best = score
+            return best
+        else:
+            edges = self.graph.get_outgoing_edges(
+                action_id,
+                state_signature=state_signature if self.config.use_state_conditioning else None,
+                backoff=True,
+            )
+            if not edges:
+                return None
+            # N = sum of episode counts across all outgoing edges from this action
+            N = sum(int(s.get("visit_count", 0) or 0) for _, _, s in edges)
+            best = None
+            for _to, _label, stats in edges:
+                mc = float(stats.get("mean_contribution", 0.0) or 0.0)
+                vc = int(stats.get("visit_count", 0) or 0)
+                score = _ucb_score(mc, vc, N, c)
+                if best is None or score > best:
+                    best = score
+            return best
+
+    def _graph_priors_batch(
+        self,
+        candidates: List[str],
+        *,
+        state_signature: Optional[str] = None,
+        bucket_id: Optional[str] = None,
+    ) -> Dict[str, float]:
+        """Map UCB scores to [1, 10] using robust IQR-sigmoid normalization.
+
+        Fix 2: Uses _ucb_score per edge and _map_to_prior_scale for [1,10] mapping.
+        - Actions with no edges → inf (unvisited, highest priority).
+        - Rank-based fallback when IQR≈0 or <3 candidates guarantees spread during cold-start.
+        """
+        if self.config.disable_graph:
+            return {cid: 5.5 for cid in candidates}
+
+        tau = float(getattr(self.config, 'prior_tau', 1.0))
+
+        # Collect UCB scores; None (no edges) → inf (explore first)
+        ucb_scores: List[float] = []
+        for cid in candidates:
+            rv = self._graph_prior_raw(cid, state_signature=state_signature, bucket_id=bucket_id)
+            ucb_scores.append(float('inf') if rv is None else rv)
+
+        priors_list = _map_to_prior_scale(ucb_scores, tau=tau)
+        return {cid: priors_list[i] for i, cid in enumerate(candidates)}
+
+    def _graph_prior(self, action_id: str, *, state_signature: Optional[str] = None) -> float:
+        """Single-action prior (delegates to batch with one candidate)."""
+        priors = self._graph_priors_batch([action_id], state_signature=state_signature)
+        return priors.get(action_id, 5.5)
 
     def _calibrate_confidence(
         self,

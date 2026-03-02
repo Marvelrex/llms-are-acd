@@ -16,9 +16,9 @@ class GraphAgentConfig:
 
     # (1) Credit assignment improvements
     use_discounted_credit: bool = True
-    credit_gamma: float = 0.97
+    credit_gamma: float = 0.92
     use_baseline: bool = True
-    baseline_beta: float = 0.05
+    baseline_beta: float = 0.2
     baseline_scope: Literal["global", "role"] = "global"
 
     # (2) State-conditioned priors
@@ -91,3 +91,38 @@ class GraphAgentConfig:
     # (8) Traffic action safety
     traffic_cooldown_steps: int = 3
     traffic_flipflop_horizon: int = 4
+
+    # (9) Ablation: disable action graph entirely (pure LLM decisions)
+    # When True, graph priors are fixed at 5.5, no blending, no learning.
+    disable_graph: bool = False
+
+    # (10) Bucket-conditioned priors (coarse state conditioning, ~36 buckets)
+    # weight on bucket score when bucket visits sufficient
+    lambda_state: float = 0.3
+    # minimum bucket edge visits before lambda_eff > 0
+    min_bucket_visits: int = 5
+
+    # (11) [avg_ep_reward disabled] Episode-level reward tracking disabled — all actions appear in
+    # every episode so avg_ep_reward converges to the same global mean, zero differentiation.
+    # Needs redesign (e.g. per-step reward attribution or counterfactual credit) before re-enabling.
+    # alpha_episode_reward: float = 0.3
+
+    # (12) Episode-level credit baseline (Fix 1: frequency-boosted per-episode credit)
+    # EMA adaptation speed for per-bucket reward baseline.
+    ema_beta: float = 0.03
+    # Clip normalized advantage to ±reward_clip to prevent outlier corruption.
+    reward_clip: float = 3.0
+
+    # (13) UCB scoring (Fix 2: UCB replaces edge_combined_score for prior computation)
+    # Exploration coefficient: higher = more exploration of under-visited edges.
+    ucb_c: float = 1.0
+
+    # (14) Sigmoid normalization (Fix 2: robust [1,10] mapping)
+    # Sigmoid sharpness: lower = sharper separation (0.5 for aggressive, 2.0 for soft).
+    prior_tau: float = 1.0
+
+    # (15) Adaptive blend (Fix 3: always-call-LLM with graph-weight proportional to prior_gap)
+    alpha_min: float = 0.4       # minimum graph weight (LLM has 1-alpha_min = 60% max influence)
+    alpha_max: float = 0.8       # maximum graph weight (LLM retains 1-alpha_max = 20% min)
+    alpha_midpoint: float = 1.0  # prior_gap at which alpha is midpoint of [alpha_min, alpha_max]
+    alpha_steepness: float = 2.0 # sigmoid steepness for alpha(prior_gap) transition

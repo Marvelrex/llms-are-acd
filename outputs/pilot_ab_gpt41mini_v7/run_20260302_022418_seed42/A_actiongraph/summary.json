@@ -1,0 +1,98 @@
+{
+  "actiongraph_cache_update": {
+    "cache_dir": "/home/jialinlabvm/projects/llms-are-acd/cage-challenge-4/outputs/pilot_ab_gpt41mini_v7/actiongraph_cache/deepseek__openai_gpt-4.1-mini",
+    "cache_graph_path": "/home/jialinlabvm/projects/llms-are-acd/cage-challenge-4/outputs/pilot_ab_gpt41mini_v7/actiongraph_cache/deepseek__openai_gpt-4.1-mini/graph_scores.json",
+    "episode": 9,
+    "reason": null,
+    "updated": true
+  },
+  "actiongraph_resume": {
+    "cache_graph_path": "/home/jialinlabvm/projects/llms-are-acd/cage-challenge-4/outputs/pilot_ab_gpt41mini_v7/actiongraph_cache/deepseek__openai_gpt-4.1-mini/graph_scores.json",
+    "enabled": true,
+    "loaded": true,
+    "reason": null
+  },
+  "agents": {
+    "impl_by_agent": {
+      "blue_agent_0": "CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent.SelfEvolvingGraphAgent",
+      "blue_agent_1": "CybORG.Agents.CybermonicAgents.cage4.InductiveGraphPPOAgent",
+      "blue_agent_2": "CybORG.Agents.CybermonicAgents.cage4.InductiveGraphPPOAgent",
+      "blue_agent_3": "CybORG.Agents.CybermonicAgents.cage4.InductiveGraphPPOAgent",
+      "blue_agent_4": "CybORG.Agents.CybermonicAgents.cage4.InductiveGraphPPOAgent"
+    }
+  },
+  "arm": "A_actiongraph",
+  "llm_agent_name": "blue_agent_0",
+  "llm_identity": {
+    "backend": "deepseek",
+    "model_config": "/home/jialinlabvm/projects/llms-are-acd/cage-challenge-4/CybORG/Agents/LLMAgents/config/model/gpt-4.1-mini.yml",
+    "model_name": "openai/gpt-4.1-mini"
+  },
+  "llm_impl": "actiongraph",
+  "parameters": {
+    "episodes": 10,
+    "llm_mode": "openrouter",
+    "max_steps": 500,
+    "rl_weights_dir": "/home/jialinlabvm/projects/llms-are-acd/cage-challenge-4/CybORG/Evaluation/Cybermonics/weights",
+    "scenario": "Scenario4",
+    "seed": 42
+  },
+  "reward": {
+    "episode_lengths": [
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500
+    ],
+    "episode_returns": [
+      -184.0,
+      -1944.0,
+      -517.0,
+      -230.0,
+      -1129.0,
+      -1036.0,
+      -220.0,
+      -216.0,
+      -186.0,
+      -255.0
+    ],
+    "episode_reward_series_lengths": [
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500
+    ],
+    "mean": -591.7,
+    "stdev": 593.923498627746,
+    "total_steps": 5000
+  },
+  "timing": {
+    "end_time": "2026-03-02T04:42:48.799378",
+    "episode_wall_time_s": [
+      911.768446350994,
+      669.1390591009986,
+      838.3421991500072,
+      983.4080006459844,
+      735.9773235850153,
+      770.5474817210343,
+      811.5137865369907,
+      928.4502747899969,
+      825.0838693610276,
+      827.648891269986
+    ],
+    "start_time": "2026-03-02T02:24:25.429215",
+    "wall_time_s": 8303.37016424205
+  }
+}

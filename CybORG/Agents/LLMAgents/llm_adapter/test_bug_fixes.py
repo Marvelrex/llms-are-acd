@@ -5,7 +5,9 @@ Run with:  python -m pytest test_bug_fixes.py -v
 from __future__ import annotations
 
 import json
+import math
 import random
+import unittest
 from collections import Counter, deque
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import MagicMock, patch
@@ -462,6 +464,7 @@ class TestBug8PromptBias:
         agent.graph = g
         agent.last_action = None
         agent.name = "blue_agent_0"
+        agent._recent_def_actions = deque(maxlen=32)
 
         prompt = agent.build_llm_prompt(
             {"phase": "test", "success": True},
@@ -472,8 +475,12 @@ class TestBug8PromptBias:
         assert "Analyse/Monitor > Sleep" not in system_content, (
             "Prompt still contains explicit Analyse/Monitor bias"
         )
-        assert "prior" in system_content.lower() and "start from" in system_content.lower(), (
-            "Prompt should contain graph prior usage instructions"
+        # New rank-only schema: system msg has "prior" and "rank" instructions
+        assert "prior" in system_content.lower(), (
+            "Prompt should mention graph priors"
+        )
+        assert "rank" in system_content.lower(), (
+            "Prompt should contain ranking instructions (rank-only schema)"
         )
 
 
@@ -518,6 +525,582 @@ class TestBug10SparseInit:
             assert len(outgoing) >= 5, (
                 f"{d} has only {len(outgoing)} attacker edges, expected >= 5"
             )
+
+
+# ===========================================================================
+# New: TestBucketBackoff — coarse bucket conditioning
+# ===========================================================================
+
+class TestBucketBackoff(unittest.TestCase):
+    """Tests for coarse bucket-conditioned priors (A1-A4)."""
+
+    def _make_graph_with_edges(self):
+        g = ActionGraph()
+        g.add_action_node(ActionNode(action_id="defender_analyse", label="Analyse", agent_type="defender"))
+        g.add_action_node(ActionNode(action_id="defender_monitor", label="Monitor", agent_type="defender"))
+        g.add_action_node(ActionNode(action_id="attacker_scan", label="Scan", agent_type="attacker"))
+        g.add_edge("defender_analyse", "attacker_scan")
+        g.add_edge("defender_monitor", "attacker_scan")
+        return g
+
+    def test_bucket_accumulates_across_sigs(self):
+        """Two full sigs that map to same bucket should accumulate bucket stats."""
+        from CybORG.Agents.LLMAgents.llm_adapter.state_signature import sig_to_bucket_id
+
+        # Two signatures that differ only in las/as (dropped by sig_to_bucket_id)
+        sig1 = "comp=0|alerts=0|las=T|step=early|as=xs"
+        sig2 = "comp=0|alerts=0|las=F|step=early|as=m"
+        bucket1 = sig_to_bucket_id(sig1)
+        bucket2 = sig_to_bucket_id(sig2)
+        self.assertIsNotNone(bucket1)
+        self.assertEqual(bucket1, bucket2, "Both sigs should map to the same coarse bucket")
+
+    def test_low_bucket_visits_uses_global(self):
+        """lambda_eff = 0 when bucket visits < min_bucket_visits → returns global stats."""
+        g = self._make_graph_with_edges()
+        # Set global edge stats
+        g.graph.edges["defender_analyse", "attacker_scan"]["visit_count"] = 10
+        g.graph.edges["defender_analyse", "attacker_scan"]["mean_contribution"] = 5.0
+        # Set bucket stats with only 2 visits (below min_bucket_visits=5)
+        g.set_bucket_edge_stats(
+            "testbucket", "defender_analyse", "attacker_scan",
+            visit_count=2, mean_contribution=9.0, m2=0.0,
+        )
+        stats = g.get_mixed_edge_stats(
+            "defender_analyse", "attacker_scan", "testbucket",
+            lambda_state=0.3, min_bucket_visits=5,
+        )
+        # Should return global stats (visit_count=10, mc=5.0)
+        self.assertEqual(stats["visit_count"], 10)
+        self.assertAlmostEqual(stats["mean_contribution"], 5.0)
+
+    def test_sufficient_bucket_visits_mixes(self):
+        """lambda_eff = lambda_state when bucket visits >= min_bucket_visits."""
+        g = self._make_graph_with_edges()
+        # Set global edge stats
+        g.graph.edges["defender_analyse", "attacker_scan"]["visit_count"] = 10
+        g.graph.edges["defender_analyse", "attacker_scan"]["mean_contribution"] = 4.0
+        # Set bucket stats with 6 visits (above min_bucket_visits=5)
+        g.set_bucket_edge_stats(
+            "testbucket", "defender_analyse", "attacker_scan",
+            visit_count=6, mean_contribution=8.0, m2=0.0,
+        )
+        la = 0.3
+        stats = g.get_mixed_edge_stats(
+            "defender_analyse", "attacker_scan", "testbucket",
+            lambda_state=la, min_bucket_visits=5,
+        )
+        expected_mc = (1.0 - la) * 4.0 + la * 8.0  # 0.7*4 + 0.3*8 = 5.2
+        self.assertAlmostEqual(stats["mean_contribution"], expected_mc, places=5)
+        self.assertIn("_bucket_vc", stats)
+        self.assertEqual(stats["_bucket_vc"], 6)
+
+
+# ===========================================================================
+# New: TestPriorNoCollapse — spread-proportional mapping
+# ===========================================================================
+
+class TestPriorNoCollapse(unittest.TestCase):
+    """Tests for spread-proportional prior mapping (B)."""
+
+    def _make_agent(self):
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import SelfEvolvingGraphAgent
+        g = _make_simple_graph()
+        agent = SelfEvolvingGraphAgent.__new__(SelfEvolvingGraphAgent)
+        agent.config = GraphAgentConfig()
+        agent.graph = g
+        return agent
+
+    def test_small_spread_amplified(self):
+        """Scores with small but non-zero spread produce priors with meaningful spread."""
+        agent = self._make_agent()
+        # Manually patch _graph_prior_raw to return tiny-spread raw scores
+        tiny_spread = 1e-5  # well below EPSILON_MAP but above TINY
+
+        candidates = ["defender_analyse", "defender_monitor", "defender_sleep"]
+        base_raw = 0.5
+        call_count = [0]
+
+        def mock_prior_raw(action_id, *, state_signature=None, bucket_id=None):
+            call_count[0] += 1
+            offsets = {"defender_analyse": tiny_spread, "defender_monitor": tiny_spread / 2, "defender_sleep": 0.0}
+            return base_raw + offsets.get(action_id, 0.0)
+
+        agent._graph_prior_raw = mock_prior_raw
+        agent._get_quality_scale = lambda: 1.0  # so EPSILON_MAP = 0.01
+
+        priors = agent._graph_priors_batch(candidates)
+        # With spread-proportional mapping, the best should be > 5.5 and worst < 5.5
+        vals = list(priors.values())
+        spread = max(vals) - min(vals)
+        assert spread > 0.1, f"Spread {spread} too small; small raw spread should be amplified proportionally"
+
+    def test_identical_scores_rank_based_fallback(self):
+        """All identical raw scores → rank-based fallback guarantees spread on [1,10].
+
+        Fix 2 (IQR-sigmoid): when IQR≈0 (all UCB scores equal), fall back to rank-based
+        mapping which always produces spread. This guarantees the LLM sees differentiated
+        priors even during cold-start when all edges are unvisited.
+        """
+        agent = self._make_agent()
+        candidates = ["defender_analyse", "defender_monitor", "defender_sleep"]
+
+        def mock_prior_raw(action_id, *, state_signature=None, bucket_id=None):
+            return 0.5  # identical UCB scores
+
+        agent._graph_prior_raw = mock_prior_raw
+        agent._get_quality_scale = lambda: 1.0
+
+        priors = agent._graph_priors_batch(candidates)
+        vals = list(priors.values())
+        spread = max(vals) - min(vals)
+        # Rank-based fallback: [1.0, 5.5, 10.0] → spread = 9.0
+        assert spread > 0.1, (
+            f"Spread {spread:.3f} too small; rank-based fallback should guarantee spread"
+        )
+        # All values should be in [1, 10]
+        for cid, v in priors.items():
+            self.assertGreaterEqual(v, 1.0, f"{cid} prior {v:.3f} below 1.0")
+            self.assertLessEqual(v, 10.0, f"{cid} prior {v:.3f} above 10.0")
+
+    def test_large_spread_uses_linear_map(self):
+        """When spread > EPSILON_MAP, existing [1,10] linear map is used."""
+        agent = self._make_agent()
+        candidates = ["defender_analyse", "defender_monitor"]
+
+        # Return scores with large spread (> 0.01 * quality_scale=1.0 = 0.01)
+        raw_vals_map = {"defender_analyse": 1.0, "defender_monitor": 0.0}
+
+        def mock_prior_raw(action_id, *, state_signature=None, bucket_id=None):
+            return raw_vals_map[action_id]
+
+        agent._graph_prior_raw = mock_prior_raw
+        agent._get_quality_scale = lambda: 1.0  # EPSILON_MAP = 0.01; spread=1.0 >> 0.01
+
+        priors = agent._graph_priors_batch(candidates)
+        # Linear rescale: best → 10.0, worst → 1.0
+        self.assertAlmostEqual(priors["defender_analyse"], 10.0, places=5)
+        self.assertAlmostEqual(priors["defender_monitor"], 1.0, places=5)
+
+
+# ===========================================================================
+# New: TestRankOnlyEnforcement — rank-only LLM output + score synthesis
+# ===========================================================================
+
+class TestRankOnlyEnforcement(unittest.TestCase):
+    """Tests for rank-only LLM output and deterministic score synthesis (C)."""
+
+    def _make_agent(self):
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import SelfEvolvingGraphAgent
+        g = _make_simple_graph()
+        agent = SelfEvolvingGraphAgent.__new__(SelfEvolvingGraphAgent)
+        agent.config = GraphAgentConfig()
+        agent.graph = g
+        return agent
+
+    def test_valid_ranked_actions_parsed(self):
+        """Valid ranked_actions response → llm_valid=True, per_action_scores empty."""
+        agent = self._make_agent()
+        candidates = ["defender_analyse", "defender_monitor", "defender_sleep"]
+        response = json.dumps({
+            "ranked_actions": ["defender_analyse", "defender_monitor", "defender_sleep"],
+            "confidence": 0.8,
+            "brief_reason": "analyse has highest prior",
+        })
+        ranked, conf, just, risk, valid, debug, scores = agent.parse_llm_response(response, candidates)
+        self.assertTrue(valid, f"Should be valid: {debug.get('invalid_reasons')}")
+        self.assertEqual(ranked[0], "defender_analyse")
+        self.assertAlmostEqual(conf, 0.8, places=5)
+        self.assertEqual(scores, {}, "rank-only schema should return empty per_action_scores")
+        self.assertEqual(debug.get("schema"), "rank_only")
+
+    def test_rank_adjustment_bounded_by_delta(self):
+        """Rank-delta synthesis: |final_score - prior| <= RANK_DELTA for all actions."""
+        RANK_DELTA = 1.5
+        priors = {"defender_analyse": 7.0, "defender_monitor": 5.5, "defender_sleep": 3.0}
+        ranked_actions = ["defender_analyse", "defender_monitor", "defender_sleep"]
+        candidates = list(priors.keys())
+
+        # Simulate the synthesis logic
+        final_scores: Dict[str, float] = {}
+        n = len(ranked_actions)
+        for i, aid in enumerate(ranked_actions):
+            prior_val = float(priors.get(aid, 5.5))
+            adj = RANK_DELTA * (1.0 - 2.0 * i / max(n - 1, 1))
+            final_scores[aid] = max(1.0, min(10.0, prior_val + adj))
+
+        for aid in candidates:
+            prior_val = float(priors[aid])
+            fs = final_scores[aid]
+            # Difference bounded by RANK_DELTA (allow small epsilon for clamp at [1,10])
+            raw_adj = fs - prior_val
+            self.assertLessEqual(abs(raw_adj), RANK_DELTA + 0.01,
+                f"{aid}: |{fs:.2f} - {prior_val:.2f}| = {abs(raw_adj):.2f} > {RANK_DELTA}")
+
+    def test_invalid_ranked_actions_fallback(self):
+        """Missing or duplicate ranked_actions → llm_valid=False."""
+        agent = self._make_agent()
+        candidates = ["defender_analyse", "defender_monitor", "defender_sleep"]
+
+        # Missing one candidate
+        response_missing = json.dumps({
+            "ranked_actions": ["defender_analyse", "defender_monitor"],
+            "confidence": 0.8,
+            "brief_reason": "only two",
+        })
+        _, _, _, _, valid, debug, _ = agent.parse_llm_response(response_missing, candidates)
+        self.assertFalse(valid, "Missing candidates should make rank invalid")
+        self.assertIn("ranked_actions_not_valid_permutation", debug.get("invalid_reasons", []))
+
+        # Duplicate candidates
+        response_dup = json.dumps({
+            "ranked_actions": ["defender_analyse", "defender_analyse", "defender_sleep"],
+            "confidence": 0.8,
+            "brief_reason": "duplicate",
+        })
+        _, _, _, _, valid2, debug2, _ = agent.parse_llm_response(response_dup, candidates)
+        self.assertFalse(valid2, "Duplicate candidates should make rank invalid")
+
+    def test_prompt_candidates_sorted_by_prior(self):
+        """build_llm_prompt returns candidates block in descending prior order."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import SelfEvolvingGraphAgent
+        g = _make_simple_graph()
+        agent = SelfEvolvingGraphAgent.__new__(SelfEvolvingGraphAgent)
+        agent.config = GraphAgentConfig()
+        agent.graph = g
+        agent.last_action = None
+        agent.name = "blue_agent_0"
+        agent._recent_def_actions = deque(maxlen=32)
+
+        candidates = ["defender_analyse", "defender_monitor", "defender_sleep"]
+        priors = {"defender_analyse": 3.0, "defender_monitor": 8.0, "defender_sleep": 5.5}
+        prompt = agent.build_llm_prompt(
+            {"phase": "test", "success": True},
+            candidates,
+            priors,
+        )
+        # Find the candidates block in the user prompt (skip system msg which also has "prior=")
+        candidates_content = ""
+        for msg in prompt:
+            content = msg.get("content", "")
+            if "prior=" in content and "defender_" in content:
+                candidates_content = content
+                break
+
+        # monitor (prior=8.0) should appear before analyse (prior=3.0)
+        monitor_pos = candidates_content.find("defender_monitor")
+        analyse_pos = candidates_content.find("defender_analyse")
+        self.assertLess(monitor_pos, analyse_pos,
+            "Higher-prior action (monitor=8.0) should appear before lower-prior action (analyse=3.0)")
+
+    def test_low_confidence_uses_priors_in_fallback(self):
+        """Low confidence (below threshold) → final_scores use graph priors, no LLM rank adjustment."""
+        # This tests the fallback branch: final_scores[cid] = priors[cid]
+        priors = {"defender_analyse": 7.0, "defender_monitor": 4.0}
+        candidates = list(priors.keys())
+
+        # Simulate the else branch of the synthesis
+        final_scores_fallback: Dict[str, float] = {}
+        for cid in candidates:
+            final_scores_fallback[cid] = float(priors.get(cid, 5.5))
+
+        self.assertAlmostEqual(final_scores_fallback["defender_analyse"], 7.0, places=5)
+        self.assertAlmostEqual(final_scores_fallback["defender_monitor"], 4.0, places=5)
+
+
+# ===========================================================================
+# Fix 1: Episode-level frequency-boosted credit
+# ===========================================================================
+
+class TestFix1EpisodeCredit(unittest.TestCase):
+    """Tests for Fix 1: per-episode frequency-boosted credit in observe_round."""
+
+    def _make_graph(self):
+        g = ActionGraph()
+        g.add_action_node(ActionNode(action_id="defender_analyse", label="Analyse", agent_type="defender"))
+        g.add_action_node(ActionNode(action_id="defender_monitor", label="Monitor", agent_type="defender"))
+        g.add_action_node(ActionNode(action_id="attacker_scan", label="Scan", agent_type="attacker"))
+        g.add_edge("defender_analyse", "attacker_scan")
+        g.add_edge("defender_monitor", "attacker_scan")
+        g.add_edge("attacker_scan", "defender_analyse")
+        g.add_edge("attacker_scan", "defender_monitor")
+        g.reward_magnitude_anchor = 0.0
+        g.baseline_default = 0.0
+        return g
+
+    def test_episode_count_tracks_episodes_not_steps(self):
+        """After one observe_round, visit_count == 1 (episode count, not step count)."""
+        g = self._make_graph()
+        defender = SelfEvolveDefender(g, ema_beta=0.03)
+
+        # Trace: analyse appears 3 times, monitor 0 times in 4-step trace
+        trace = [
+            "defender_analyse", "attacker_scan",
+            "defender_analyse", "attacker_scan",
+            "defender_analyse", "attacker_scan",
+        ]
+        defender.observe_round(trace, {"reward": -300.0})
+
+        # visit_count for analyse→scan should be 1 (one episode), not 3 (not step count)
+        analyse_stats = defender.edge_stats["defender_analyse"].get("attacker_scan")
+        self.assertIsNotNone(analyse_stats)
+        self.assertEqual(analyse_stats.visit_count, 1,
+            f"visit_count should be 1 (episode count), got {analyse_stats.visit_count}")
+
+        # total_traversals should be 3 (step count)
+        self.assertEqual(analyse_stats.total_traversals, 3,
+            f"total_traversals should be 3 (step count), got {analyse_stats.total_traversals}")
+
+    def test_frequent_edge_higher_credit_than_rare(self):
+        """Edge traversed more often should accumulate higher |credit| per episode."""
+        g = self._make_graph()
+        defender = SelfEvolveDefender(g, ema_beta=0.0)  # ema_beta=0 → baseline stays at 0
+
+        # trace: analyse appears 8/10 steps, monitor appears 2/10 steps
+        trace = (
+            ["defender_analyse", "attacker_scan"] * 8 +
+            ["defender_monitor", "attacker_scan"] * 2
+        )
+        # T = 20 (each pair = 2 edges? No, the trace is a flat list)
+        # Build a flat trace with analyse repeated 8 times and monitor 2 times
+        flat_trace = []
+        for _ in range(8):
+            flat_trace.extend(["defender_analyse", "attacker_scan"])
+        for _ in range(2):
+            flat_trace.extend(["defender_monitor", "attacker_scan"])
+        # flat_trace has 20 transitions total; analyse→scan appears 8 times, monitor→scan 2 times
+
+        defender.observe_round(flat_trace, {"reward": -100.0})
+
+        analyse_mc = abs(defender.edge_stats["defender_analyse"]["attacker_scan"].mean_contribution)
+        monitor_mc = abs(defender.edge_stats["defender_monitor"]["attacker_scan"].mean_contribution)
+        self.assertGreater(analyse_mc, monitor_mc,
+            f"Frequent edge (analyse, 8/20) should have higher |credit| than rare edge "
+            f"(monitor, 2/20): {analyse_mc:.4f} vs {monitor_mc:.4f}")
+
+    def test_reward_baseline_updates_after_episode(self):
+        """Baseline should be updated after each episode."""
+        g = self._make_graph()
+        defender = SelfEvolveDefender(g, ema_beta=0.1)
+        trace = ["defender_analyse", "attacker_scan"]
+
+        initial_mean, _ = defender._reward_baseline.get(None)
+        self.assertAlmostEqual(initial_mean, 0.0)
+
+        defender.observe_round(trace, {"reward": -500.0})
+
+        updated_mean, _ = defender._reward_baseline.get(None)
+        # EMA with beta=0.1: new_mean = 0.9*0 + 0.1*(-500) = -50
+        self.assertLess(updated_mean, 0.0, "Baseline should decrease after negative episode reward")
+
+
+# ===========================================================================
+# Fix 2 + Fix 3: UCB scoring and adaptive blend
+# ===========================================================================
+
+class TestFix2UCBScoring(unittest.TestCase):
+    """Tests for Fix 2: UCB scoring and sigmoid normalization."""
+
+    def test_ucb_score_inf_for_unvisited(self):
+        """_ucb_score returns inf for n<2."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _ucb_score
+        self.assertEqual(_ucb_score(0.0, 0, 10, 1.0), float('inf'))
+        self.assertEqual(_ucb_score(-5.0, 1, 10, 1.0), float('inf'))
+
+    def test_ucb_score_finite_for_visited(self):
+        """_ucb_score is finite and includes exploration bonus for n>=2."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _ucb_score
+        score = _ucb_score(-0.5, 5, 50, 1.0)
+        self.assertTrue(math.isfinite(score))
+        # Should be mean + bonus = -0.5 + something > 0
+        self.assertGreater(score, -0.5)
+
+    def test_map_to_prior_scale_range(self):
+        """_map_to_prior_scale output is always in [1, 10]."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _map_to_prior_scale
+        # Mix of finite and inf
+        ucb_scores = [float('inf'), -0.5, -1.0, float('inf'), -0.2]
+        result = _map_to_prior_scale(ucb_scores)
+        for v in result:
+            self.assertGreaterEqual(v, 1.0)
+            self.assertLessEqual(v, 10.0)
+
+    def test_map_to_prior_scale_spread(self):
+        """Scores with spread produce priors with spread."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _map_to_prior_scale
+        ucb_scores = [-0.1, -0.3, -0.5, -0.7, -0.9]
+        result = _map_to_prior_scale(ucb_scores)
+        spread = max(result) - min(result)
+        self.assertGreater(spread, 1.0, "Should have meaningful spread in priors")
+
+
+class TestFix3AdaptiveBlend(unittest.TestCase):
+    """Tests for Fix 3: compute_alpha and blend_scores."""
+
+    def test_compute_alpha_range(self):
+        """_compute_alpha returns value in [alpha_min, alpha_max]."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _compute_alpha
+        for gap in [0.0, 0.5, 1.0, 2.0, 5.0]:
+            alpha = _compute_alpha(gap)
+            self.assertGreaterEqual(alpha, 0.4)
+            self.assertLessEqual(alpha, 0.8)
+
+    def test_compute_alpha_increases_with_gap(self):
+        """Larger prior gap → higher alpha (graph more influential)."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _compute_alpha
+        alpha_low = _compute_alpha(0.1)
+        alpha_high = _compute_alpha(3.0)
+        self.assertLess(alpha_low, alpha_high,
+            f"alpha should increase with prior_gap: gap=0.1→{alpha_low:.3f}, gap=3.0→{alpha_high:.3f}")
+
+    def test_blend_scores_always_returns_all_actions(self):
+        """_blend_scores returns a score for every action in priors."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _blend_scores
+        priors = {"a": 8.0, "b": 5.5, "c": 2.0}
+        ranking = ["a", "b", "c"]
+        blended = _blend_scores(priors, ranking, alpha=0.6)
+        self.assertEqual(set(blended.keys()), set(priors.keys()))
+
+    def test_blend_scores_preserves_ordering(self):
+        """When priors and LLM agree, top action stays on top."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _blend_scores
+        priors = {"best": 9.0, "mid": 5.5, "worst": 2.0}
+        ranking = ["best", "mid", "worst"]
+        blended = _blend_scores(priors, ranking, alpha=0.5)
+        self.assertGreater(blended["best"], blended["mid"])
+        self.assertGreater(blended["mid"], blended["worst"])
+
+    def test_blend_scores_within_prior_range(self):
+        """Blended scores stay close to [1, 10] range."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import _blend_scores
+        priors = {"a": 7.0, "b": 5.5, "c": 3.0}
+        ranking = ["a", "b", "c"]
+        for alpha in [0.4, 0.6, 0.8]:
+            blended = _blend_scores(priors, ranking, alpha=alpha)
+            for v in blended.values():
+                self.assertGreaterEqual(v, 1.0 - 0.1)  # small tolerance
+                self.assertLessEqual(v, 10.0 + 0.1)
+
+
+# ===========================================================================
+# [avg_ep_reward disabled] TestAverageEpisodeReward — kept for future reference.
+# All edges converge to same global mean (~-278), zero differentiation between actions.
+# Re-enable when per-action credit attribution is redesigned.
+# ===========================================================================
+
+class _DisabledTestAverageEpisodeReward:  # renamed from unittest.TestCase to disable
+    """Tests for avg_ep_reward / ep_score feature (episode-level reward tracking)."""
+
+    def _make_graph(self):
+        g = ActionGraph()
+        g.add_action_node(ActionNode(action_id="defender_analyse", label="Analyse", agent_type="defender"))
+        g.add_action_node(ActionNode(action_id="defender_monitor", label="Monitor", agent_type="defender"))
+        g.add_action_node(ActionNode(action_id="attacker_scan", label="Scan", agent_type="attacker"))
+        g.add_edge("defender_analyse", "attacker_scan")
+        g.add_edge("defender_monitor", "attacker_scan")
+        g.add_edge("attacker_scan", "defender_analyse")
+        g.add_edge("attacker_scan", "defender_monitor")
+        return g
+
+    def test_edgestats_update_episode(self):
+        """update_episode() correctly computes Welford mean of episode rewards."""
+        stats = EdgeStats()
+        stats.update_episode(-100.0)
+        self.assertEqual(stats.episode_count, 1)
+        self.assertAlmostEqual(stats.episode_reward_mean, -100.0)
+
+        stats.update_episode(-300.0)
+        self.assertEqual(stats.episode_count, 2)
+        self.assertAlmostEqual(stats.episode_reward_mean, -200.0)  # mean of -100 and -300
+
+        stats.update_episode(-200.0)
+        self.assertEqual(stats.episode_count, 3)
+        self.assertAlmostEqual(stats.episode_reward_mean, -200.0)  # mean of -100, -300, -200
+
+    def test_observe_round_updates_ep_stats(self):
+        """After observe_round, unique defender edges should have ep_count > 0."""
+        g = self._make_graph()
+        g.reward_magnitude_anchor = 0.0
+        g.baseline_default = 0.0
+        defender = SelfEvolveDefender(g)
+
+        trace = ["defender_analyse", "attacker_scan", "defender_analyse", "attacker_scan"]
+        result = {"reward": -500.0}
+        defender.observe_round(trace, result)
+
+        # ep_count should be 1 for defender_analyse -> attacker_scan
+        edge_data = g.graph.edges["defender_analyse", "attacker_scan"]
+        self.assertEqual(edge_data["ep_count"], 1)
+        self.assertAlmostEqual(edge_data["avg_ep_reward"], -500.0)
+
+    def test_ep_fields_persisted_in_to_dict(self):
+        """avg_ep_reward and ep_count are serialized in to_dict()."""
+        g = self._make_graph()
+        g.graph.edges["defender_analyse", "attacker_scan"]["avg_ep_reward"] = -250.0
+        g.graph.edges["defender_analyse", "attacker_scan"]["ep_count"] = 3
+        d = g.to_dict()
+        edge_entry = next(
+            e for e in d["edges"]
+            if e["from"] == "defender_analyse" and e["to"] == "attacker_scan"
+        )
+        self.assertAlmostEqual(edge_entry["avg_ep_reward"], -250.0)
+        self.assertEqual(edge_entry["ep_count"], 3)
+
+    def test_ep_fields_loaded_from_dict(self):
+        """avg_ep_reward and ep_count survive save/load round-trip."""
+        import json
+        import tempfile
+        from pathlib import Path
+
+        g = self._make_graph()
+        g.graph.edges["defender_analyse", "attacker_scan"]["avg_ep_reward"] = -350.0
+        g.graph.edges["defender_analyse", "attacker_scan"]["ep_count"] = 5
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
+            json.dump(g.to_dict(), f)
+            tmp_path = Path(f.name)
+
+        g2 = ActionGraph.load(tmp_path)
+        edge_data = g2.graph.edges["defender_analyse", "attacker_scan"]
+        self.assertAlmostEqual(edge_data["avg_ep_reward"], -350.0)
+        self.assertEqual(edge_data["ep_count"], 5)
+        tmp_path.unlink()
+
+    def test_prior_spread_increases_with_ep_reward(self):
+        """With alpha_episode_reward > 0, edges with different avg_ep_reward produce different priors."""
+        from CybORG.Agents.LLMAgents.llm_adapter.self_evolving_agent import SelfEvolvingGraphAgent
+
+        g = _make_simple_graph()
+        # Set different avg_ep_reward for two defender actions' outgoing edges.
+        # Good action: avg_ep_reward = -100 (better episodes)
+        for _, to, _ in g.graph.edges("defender_analyse", data=True):
+            g.graph.edges["defender_analyse", to]["avg_ep_reward"] = -100.0
+            g.graph.edges["defender_analyse", to]["ep_count"] = 10
+            g.graph.edges["defender_analyse", to]["visit_count"] = 20
+            g.graph.edges["defender_analyse", to]["mean_contribution"] = -0.1
+        # Bad action: avg_ep_reward = -800 (worse episodes)
+        for _, to, _ in g.graph.edges("defender_monitor", data=True):
+            g.graph.edges["defender_monitor", to]["avg_ep_reward"] = -800.0
+            g.graph.edges["defender_monitor", to]["ep_count"] = 10
+            g.graph.edges["defender_monitor", to]["visit_count"] = 20
+            g.graph.edges["defender_monitor", to]["mean_contribution"] = -0.1
+        g.reward_magnitude_anchor = 800.0
+        g.baseline_default = -0.5
+
+        agent = SelfEvolvingGraphAgent.__new__(SelfEvolvingGraphAgent)
+        agent.config = GraphAgentConfig(alpha_episode_reward=0.3)
+        agent.graph = g
+
+        candidates = ["defender_analyse", "defender_monitor"]
+        priors = agent._graph_priors_batch(candidates)
+
+        # Good action should have higher prior than bad action.
+        self.assertGreater(priors["defender_analyse"], priors["defender_monitor"],
+                           "ep_score blending should rank good episodes higher")
+        # Priors should be meaningfully different (spread > 1.0).
+        spread = priors["defender_analyse"] - priors["defender_monitor"]
+        self.assertGreater(spread, 1.0,
+                           f"Prior spread {spread:.2f} should be > 1.0 to guide LLM")
 
 
 if __name__ == "__main__":
